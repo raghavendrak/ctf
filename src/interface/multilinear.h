@@ -53,9 +53,8 @@ namespace CTF {
   template<typename dtype>
   void MTTKRP(Tensor<dtype> * T, Tensor<dtype> ** mat_list, int mode, bool aux_mode_first);
 
-  template<typename dtype_T, typename dtype_vec, typename dtype_w>
-  void Multilinear(Tensor<dtype_T> * T, Tensor<dtype_vec> ** vec_list, Tensor<dtype_w> * w, std::function<dtype_w(dtype_vec,dtype_T,dtype_vec)> f);
-
+  template<typename dtype, typename dtype_w>
+  void Multilinear(Tensor<dtype> * T, Tensor<dtype> ** vec_list, Tensor<dtype_w> * w, std::function<dtype_w(int,int,int)> f);
   /**
     * \brief Compute solve for tensor completion type eqns in parallel with input tensor T and list of matrices
       

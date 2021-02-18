@@ -1000,8 +1000,9 @@ namespace CTF {
   }
 
   // w_i = f(T_ij, x_i, y_j)
-  template<typename dtype_T, typename dtype_vec, typename dtype_w>
-  void Multilinear(Tensor<dtype_T> * T, Tensor<dtype_vec> ** vec_list, Tensor<dtype_w> * w, std::function<dtype_w(dtype_vec,dtype_T,dtype_vec)> f){
+  // TODO: Template function
+  template<typename dtype, typename dtype_w>
+  void Multilinear(Tensor<dtype> * T, Tensor<dtype> ** vec_list,  Tensor<dtype_w> * w, std::function<dtype_w(int,int,int)> f){
     Timer t_multilinear("Multilinear");
     t_multilinear.start();
 
@@ -1010,7 +1011,7 @@ namespace CTF {
       IASSERT(vec_list[i]->order == 1);
       IASSERT(T->lens[i] == vec_list[i]->lens[0]);
     }
-    dtype_vec ** arrs = (dtype_vec**)malloc(sizeof(dtype_vec*)*T->order);
+    dtype ** arrs = (dtype**)malloc(sizeof(dtype*)*T->order);
     int * phys_phase = (int*)malloc(T->order*sizeof(int));
     
     for (int i = 0; i < T->order; i++) {
@@ -1018,16 +1019,16 @@ namespace CTF {
     }
     
     int64_t npair;
-    Pair<dtype_T> * pairs;
+    Pair<dtype> * pairs;
     if (T->is_sparse) {
-      pairs = (Pair<dtype_T>*)T->data;
+      pairs = (Pair<dtype>*)T->data;
       npair = T->nnz_loc;
     } 
     else {
       T->get_local_pairs(&npair, &pairs, true, false);
     }
 
-    Tensor<dtype_vec> ** redist_vecs = (Tensor<dtype_vec>**)malloc(sizeof(Tensor<dtype_vec>*) * T->order);
+    Tensor<dtype> ** redist_vecs = (Tensor<dtype>**)malloc(sizeof(Tensor<dtype>*) * T->order);
     
     Partition par(T->topo->order, T->topo->lens);
     char * par_idx = (char*) malloc(sizeof(char) * T->topo->order);
@@ -1041,15 +1042,15 @@ namespace CTF {
       if (phys_phase[i] == 1) {
         redist_vecs[i] = NULL;
         if (T->wrld->np == 1) {
-          arrs[i] = (dtype_vec*)vec_list[i]->data;
+          arrs[i] = (dtype*)vec_list[i]->data;
         } else {
-          arrs[i] = (dtype_vec*)vec_list[i]->sr->alloc(T->lens[i]);
+          arrs[i] = (dtype*)T->sr->alloc(T->lens[i]);
           vec_list[i]->read_all(arrs[i], true);
         }
       }
       else {
         int topo_dim = T->edge_map[i].cdt;
-        Vector<dtype_vec> * v = new Vector<dtype_vec>(vec_list[i]->lens[0], par_idx[topo_dim], par[par_idx], Idx_Partition(), 0, *T->wrld, *vec_list[i]->sr);
+        Vector<dtype> * v = new Vector<dtype>(vec_list[i]->lens[0], par_idx[topo_dim], par[par_idx], Idx_Partition(), 0, *T->wrld, *T->sr);
         // Redistribute the data using a custom function
         if (i == 0) {
           if (phys_phase[1] != 1) {
@@ -1058,7 +1059,7 @@ namespace CTF {
             MPI_Comm_split(T->wrld->comm, color, T->wrld->rank, &cm);
             char *v_temp_data;
             if (v->size < (vec_list[0]->size * T->topo->dim_comm[1].np) && T->topo->dim_comm[1].rank == 0) {
-              CTF_int::alloc_ptr((vec_list[0]->size * T->topo->dim_comm[1].np) * sizeof(dtype_vec), (void **)&v_temp_data);
+              CTF_int::alloc_ptr((vec_list[0]->size * T->topo->dim_comm[1].np) * sizeof(dtype), (void **)&v_temp_data);
             }
             else {
               v_temp_data = v->data;
@@ -1070,21 +1071,21 @@ namespace CTF {
             if (T->topo->dim_comm[1].rank == 0) {
               CTF_int::nosym_transpose(order, new_order, edge_len, (char *)v_temp_data, 0, v->sr);
               if (v->size < (vec_list[0]->size * T->topo->dim_comm[1].np)) {
-                memcpy(v->data, v_temp_data, (v->size * sizeof(dtype_vec)));
+                memcpy(v->data, v_temp_data, (v->size * sizeof(dtype)));
                 CTF_int::cdealloc(v_temp_data);
               }
             }
           }
           else {
             assert (v->size == vec_list[i]->size);
-            memcpy(v->data, vec_list[i]->data, (v->size * sizeof(dtype_vec)));
+            memcpy(v->data, vec_list[i]->data, (v->size * sizeof(dtype)));
           }
         }
         else if (i == 1) {
           if (T->topo->dim_comm[0].np == T->topo->dim_comm[1].np) {
             // FIXME: Specific optimization if vec_list[0] == vec_list[1]
             if (T->topo->dim_comm[0].rank == 0 && T->topo->dim_comm[1].rank == 0) {
-              memcpy(v->data, redist_vecs[0]->data, (v->size * sizeof(dtype_vec)));
+              memcpy(v->data, redist_vecs[0]->data, (v->size * sizeof(dtype)));
             }
             else {
               if (T->topo->dim_comm[1].rank == 0) {
@@ -1106,7 +1107,7 @@ namespace CTF {
               MPI_Comm_split(T->wrld->comm, color, T->wrld->rank, &cm);
               char *v_temp_data;
               if ((T->wrld->rank / T->topo->dim_comm[1].np == 0) && v->size < (vec_list[1]->size * T->topo->dim_comm[0].np)) {
-                CTF_int::alloc_ptr((vec_list[1]->size * T->topo->dim_comm[0].np) * sizeof(dtype_vec), (void **)&v_temp_data);
+                CTF_int::alloc_ptr((vec_list[1]->size * T->topo->dim_comm[0].np) * sizeof(dtype), (void **)&v_temp_data);
               }
               else {
                 v_temp_data = v->data;
@@ -1118,7 +1119,7 @@ namespace CTF {
                 int64_t edge_len[2] = {T->topo->dim_comm[0].np, vec_list[i]->size};
                 CTF_int::nosym_transpose(order, new_order, edge_len, (char *)v_temp_data, 0, v->sr);
                 if (v->size < (vec_list[1]->size * T->topo->dim_comm[0].np)) {
-                  memcpy(v->data, v_temp_data, (v->size * sizeof(dtype_vec)));
+                  memcpy(v->data, v_temp_data, (v->size * sizeof(dtype)));
                   CTF_int::cdealloc(v_temp_data);
                 }
                 int to_rank;
@@ -1135,7 +1136,7 @@ namespace CTF {
             }
             else {
               assert(v->size == vec_list[i]->size);
-              memcpy(v->data, vec_list[i]->data, (v->size * sizeof(dtype_vec)));
+              memcpy(v->data, vec_list[i]->data, (v->size * sizeof(dtype)));
             }
           }
         }
@@ -1144,7 +1145,7 @@ namespace CTF {
           v->operator[]("i") += vec_list[i]->operator[]("i");
         }
         
-        arrs[i] = (dtype_vec*)v->data;
+        arrs[i] = (dtype*)v->data;
         redist_vecs[i] = v;
 
         int comm_lda = 1;
@@ -1152,7 +1153,7 @@ namespace CTF {
           comm_lda *= T->topo->dim_comm[l].np;
         }
         CTF_int::CommData cmdt(T->wrld->rank - comm_lda * T->topo->dim_comm[topo_dim].rank, T->topo->dim_comm[topo_dim].rank, T->wrld->cdt);
-        cmdt.bcast(v->data, v->size, vec_list[i]->sr->mdtype(), 0);
+        cmdt.bcast(v->data, v->size, T->sr->mdtype(), 0);
       }
     }
     t_redist_v.stop();
@@ -1283,7 +1284,7 @@ namespace CTF {
         delete redist_vecs[i];
       else {
         if (vec_list[i]->data != (char *)arrs[i])
-          vec_list[i]->sr->dealloc((char *)arrs[i]);
+          T->sr->dealloc((char *)arrs[i]);
       }
     }
     free(redist_vecs);
