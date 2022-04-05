@@ -3713,6 +3713,17 @@ namespace CTF_int {
             C->order, idx_C,
             &num_tot, &idx_arr);
 
+    /*
+    for (int i = 0; i < A->order; i++) printf("%d ", idx_A[i]);
+    printf("A done \n");
+    for (int i = 0; i < B->order; i++) printf("%d ", idx_B[i]);
+    printf("B done \n");
+    for (int i = 0; i < C->order; i++) printf("%d ", idx_C[i]);
+    printf("C done \n");
+    for (int i = 0; i < (num_tot * 3); i++) printf("%d ", idx_arr[i]);
+    printf("idx_arr done\n");
+    */
+
     nphys_dim = A->topo->order;
 
     CTF_int::alloc_ptr(sizeof(int64_t)*A->order, (void**)&virt_blk_len_A);
@@ -4473,6 +4484,7 @@ namespace CTF_int {
         size_blk_C = C->rec_tsr->nnz_blk;
       }
 
+      //if (A->wrld->cdt.rank == 0) printf("contraction::contract() call run()\n");
       ((spctr*)ctrf)->run(data_A, A->calc_nvirt(), size_blk_A,
                           data_B, B->calc_nvirt(), size_blk_B,
                           data_C, C->calc_nvirt(), size_blk_C,
@@ -4499,8 +4511,9 @@ namespace CTF_int {
         if (size_blk_B != NULL) cdealloc(size_blk_B);
         if (size_blk_C != NULL) cdealloc(size_blk_C);
       }
-    } else
+    } else {
       ctrf->run(A->data, B->data, C->data);
+    }
   #ifdef PROFILE_MEMORY
     if (C->wrld->rank == 0){
       printf("Finished contraction  computation\n");

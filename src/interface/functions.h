@@ -4,6 +4,7 @@
 #include "../scaling/scaling.h"
 #include "../summation/summation.h"
 #include "../contraction/contraction.h"
+#include "../contraction/gen_contraction.h"
 
 
 namespace CTF {

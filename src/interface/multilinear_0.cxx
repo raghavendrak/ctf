@@ -1,5 +1,4 @@
 #include "vector.h"
-#include <unordered_map>
 #include "timer.h"
 #include "../mapping/mapping.h"
 #include "../shared/blas_symbs.h"
@@ -646,9 +645,8 @@ namespace CTF {
 
             Timer t_mttkrp_red("MTTKRP_Reduce");
             t_mttkrp_red.start();
-            if (cmr == 0) {
+            if (cmr == 0)
               MPI_Reduce(MPI_IN_PLACE, arrs[j], sz, T->sr->mdtype(), T->sr->addmop(), 0, cm);
-            }
             else {
               MPI_Reduce(arrs[j], NULL, sz, T->sr->mdtype(), T->sr->addmop(), 0, cm);
               std::fill(arrs[j], arrs[j]+sz, *((dtype*)T->sr->addid()));
@@ -1007,13 +1005,13 @@ namespace CTF {
   template<typename dtype>
   void TTMC(Tensor<dtype> * T, Tensor<dtype> * X, int num_ops, int const * modes, Tensor<dtype> ** mat_list, bool aux_mode_first)
   {
-
-    Timer t_ttmc("TTMC");
-    t_ttmc.start();
+    printf("mat_list[1]->lens[0]: %d mat_list[1]->lens[1]: %d T->order: %d T->topo->order: %d\n", mat_list[1]->lens[0], mat_list[1]->lens[1], T->order, T->topo->order);
+    
     dtype ** arrs = (dtype**)malloc(sizeof(dtype*) * num_ops);
     int * phys_phase = (int *)malloc(T->order * sizeof(int));
     for (int i = 0; i < T->order; i++) {
       phys_phase[i] = T->edge_map[i].calc_phys_phase();
+      printf("rank: %d phys_phase[%d]: %d\n", T->wrld->rank, i, phys_phase[i]);
     }
 
     // redistribute and duplicate the matrices
@@ -1026,16 +1024,8 @@ namespace CTF {
     int * mat_strides = (int *) malloc(2 * num_ops * sizeof(int)); 
     char mat_idx[2];
     int64_t *ldas = (int64_t *) malloc(num_ops * sizeof(int64_t));
-    Timer t_ttmc_redist_fac("TTMC_Redist_FAC");
-    t_ttmc_redist_fac.start();
-    double stime;
-    double etime;
-    MPI_Barrier(MPI_COMM_WORLD);
-    stime = MPI_Wtime();
 
     for (int i = 0; i < num_ops; i++) {
-
-      // TODO: compute slices etc
 
       int kd = mat_list[i]->lens[1-aux_mode_first];
       Tensor<dtype> * mat = mat_list[i];
@@ -1054,6 +1044,7 @@ namespace CTF {
       } else {
         int nrow, ncol;
         int topo_dim = T->edge_map[modes[i]].cdt;
+        if (T->wrld->rank == 0) std::cout << "topo_dim: " << topo_dim << std::endl;
         int comm_lda = 1;
         for (int l = 0; l < topo_dim; l++) {
           comm_lda *= T->topo->dim_comm[l].np;
@@ -1088,24 +1079,17 @@ namespace CTF {
         }
       }
     }
-    t_ttmc_redist_fac.stop();
-    MPI_Barrier(MPI_COMM_WORLD);
-    etime = MPI_Wtime();
-    if(T->wrld->rank == 0) printf("Factors redistribute: %1.2lf\n", (etime - stime));
     int64_t npair;
     Pair<dtype> * pairs;
-    if (T->is_sparse) {
-      pairs = (Pair<dtype> *)T->data;
-      npair = T->nnz_loc;
-    }
-    else {
-      T->get_local_pairs(&npair, &pairs, true, false);
-    }
+    T->get_local_pairs(&npair, &pairs, true, false);
+    // CSF format
+    CSF<dtype> T_csf(T);
+    //T_csf.print();
 
-    // To compute the output tensor:
-    // NOTE: can have an unordered_map so that sparsity along the non contracted mode is preserved - i.e. generate pair<k, d> for the nonzero entries alone
-    // ^ looks like this sparsity is preserved even if Pairs<> are allocated apriori
-    // op_pairs[i].d : the i is computed using the i of the first for loop, so that the k entry is always unique
+
+    int64_t ur = mat_list[0]->lens[1-aux_mode_first];
+    int64_t vr = mat_list[1]->lens[1-aux_mode_first];
+    
     // for output tensor
     // find the mode that is not contracted
     // TODO: assumes modes[] array is sorted
@@ -1117,62 +1101,18 @@ namespace CTF {
       }
     }
     if (op_mode == -1) op_mode = num_ops;
-    // create output tensor - along the input tensor
-    int op_lens[T->order];
-    char *op_par_idx = (char *)malloc(sizeof(char) * T->order);
-    int j = 0;
-    for (int i = 0; i < T->order; i++) {
-      if (i == op_mode && phys_phase[i] == 1) {
-        op_lens[i] = T->lens[op_mode];
-        op_par_idx[i] = 'a' + i - 32;
-      }
-      else if (i == op_mode) {
-        int topo_dim = T->edge_map[op_mode].cdt;
-        IASSERT(T->edge_map[i].type == CTF_int::PHYSICAL_MAP);
-        IASSERT(!T->edge_map[i].has_child || T->edge_map[i].child->type != CTF_int::PHYSICAL_MAP);
-        op_lens[i] = T->lens[op_mode];
-        op_par_idx[i] = par_idx[topo_dim];
-      } 
-      else {
-        op_lens[i] = mat_list[j++]->lens[1-aux_mode_first];
-        op_par_idx[i] = 'a' + i - 32;
-      }
-    }
-    Tensor<dtype> * X_redist = new Tensor<dtype>(T->order, 0, op_lens, 0, *T->wrld, op_par_idx, par[par_idx], Idx_Partition(), "OUTPUT_REDIST_TENSOR", 0, *T->sr);
-    dtype * redist_data = (dtype *)X_redist->data;
-
-    /*
-    // setup communicator to sum the output tensor
-    int comm_lda = 1;
-    for (int l = 0; l < topo_dim; l++) {
-      comm_lda *= T->topo->dim_comm[l].np;
-    }
-    CTF_int::CommData cmdt(T->wrld->rank - comm_lda*T->topo->dim_comm[topo_dim].rank, T->topo->dim_comm[topo_dim].rank, T->wrld->cdt);
-    */
-    // CTF_int::CSF format
-    //T->print();
-
-
-    // Compute WC
-    // WC = np.einsum("kji,kr,js->rsi",T,U,V)
-    // U : k X r and V : j X s
-    // T : 2 X 3 X 4
-    // len[mode[2]] = 4
-    // T_csf head node is mode[2] i.e. mode[2] -> mode[1] -> mode[0]
-    // this contraction is across mode[1] and mode[0]
-    int64_t ur = mat_list[0]->lens[1-aux_mode_first];
-    int64_t vr = mat_list[1]->lens[1-aux_mode_first];
     
-    
-    //int64_t op_npairs = T_csf.nnz_level[(T->order-1)-op_mode] * ur * vr;
-    //printf("op_mode: %d op_npairs: %d\n", op_mode, op_npairs);
-    // TODO: creates a duplicate memory - should access the op_tensor data directly?
+    int64_t op_npairs = T_csf.nnz_level[(T->order-1)-op_mode] * ur * vr;
+    Pair<dtype> * op_pairs = new Pair<dtype>[op_npairs];
     int64_t arr_idx;
+    for (int64_t i = 0; i < op_npairs; i++) {
+      op_pairs[i].d = 0;
+      op_pairs[i].k = 0;
+    }
     // to compute index for the output tensor
-    j = 0;
+    int j = 0;
     ldas = new int64_t[T->order]();
     ldas[0] = 1;
-    /*
     for (int i = 1; i < X->order; i++) {
       if ((i-1) == op_mode) {
         ldas[i] = ldas[i-1] * T->lens[i-1];
@@ -1181,395 +1121,127 @@ namespace CTF {
         ldas[i] = ldas[i-1] * mat_list[j++]->lens[1-aux_mode_first];
       }
     }
-    */
-    for (int i = 1; i < T->order; i++) {
-      //ldas[i] = ldas[i-1] * (T->pad_edge_len[i-1] / phys_phase[i-1]);
-      ldas[i] = ldas[i-1] * T->lens[i-1];
-    }
-    j = 0;
-    int64_t *oldas = (int64_t *) malloc(num_ops * sizeof(int64_t));
-    oldas = new int64_t[T->order]();
-    oldas[0] = 1;
-    for (int i = 1; i < X->order; i++) {
-      if ((i-1) == op_mode) {
-        oldas[i] = oldas[i-1] * (T->pad_edge_len[i-1] / phys_phase[i-1]);
-      }
-      else {
-        oldas[i] = oldas[i-1] * mat_list[j++]->lens[1-aux_mode_first];
-      }
-    }
 
     // [k][j][i] with T_csf head at i
     // output tensor index .k: idx_k * ldas[0] + idx_j * ldas[1] + idx_i * ldas[2] output tensor pairs[ind].k ind: idx_k * ldas[0] + idx_j * ldas[1] + i * ldas[2] where i in (0, T_csf.nnz_level[0])
-    Timer t_ttmc_work("TTMC work");
-    t_ttmc_work.start();
-    MPI_Barrier(MPI_COMM_WORLD);
-    stime = MPI_Wtime();
 
     int l = T->order - 1;
-    if (op_mode == 2) {
-      Timer t_csf("CTF_int::CSF tree construction");
-      t_csf.start();
-      MPI_Barrier(MPI_COMM_WORLD);
-      stime = MPI_Wtime();
-      //CTF_int::CSF<dtype> T_csf(T);
-      CTF_int::CSF<dtype> T_csf(npair, pairs, T->order, T->lens, phys_phase);
-      t_csf.stop();
-      MPI_Barrier(MPI_COMM_WORLD);
-      etime = MPI_Wtime();
-      if(T->wrld->rank == 0) printf("CTF_int::CSF tree construction: %1.2lf\n", (etime - stime));
-      //T_csf.print();
+#ifdef MODE_0 1 
+    for (int64_t i = 0; i < T_csf.nnz_level[l]; i++) {
+      int64_t idx_i = T_csf.idx[l][i];
+      std::vector<std::pair<int64_t, dtype*> > Z_i;
+      int64_t st_ptr_j = T_csf.ptr[l][i];
+      int64_t en_ptr_j = T_csf.ptr[l][i+1];
+      for (int64_t j = st_ptr_j; j < en_ptr_j; j++) {
+        int64_t idx_j = T_csf.idx[l-1][j];
+        dtype * Z_ij = new dtype[ur]();
+        int64_t st_ptr_k = T_csf.ptr[l-1][j];
+        int64_t en_ptr_k = T_csf.ptr[l-1][j+1];
+        for (int64_t r = 0; r < ur; r++) {
+          for (int64_t k = st_ptr_k; k < en_ptr_k; k++) {
+            int64_t idx_k = T_csf.idx[l-2][k];
+            idx_k = (idx_k%T->lens[0])/phys_phase[0];
+            Z_ij[r] += pairs[T_csf.ptr[l-2][k]].d * arrs[0][idx_k*mat_strides[0]+r*mat_strides[1]];
+          }
+        }
+        Z_i.push_back(std::make_pair<int64_t, dtype*>(int64_t(idx_j), &Z_ij[0]));
+      }
+      for (auto x : Z_i) {
+        for (int64_t r = 0; r < ur; r++) {
+          for (int64_t s = 0; s < vr; s++) {
+            arr_idx = r * ldas[0] + s * ldas[1] + i * ldas[2];
+            op_pairs[arr_idx].k = r * ldas[0] + s * ldas[1] + idx_i * ldas[2]; 
+            int64_t idx_j = (x.first%T->lens[1])/phys_phase[1];
+            op_pairs[arr_idx].d += x.second[r] * arrs[1][idx_j * mat_strides[2] + s * mat_strides[3]];
+          }
+        }
+      }
+    }
+    X->write(op_npairs, op_pairs);
+    X->print();
+#endif
+
+
+#ifdef MODE_1 1
+    int64_t j_batches = 2;
+    int64_t j_len = T->pad_edge_len[1] / phys_phase[1];
+    int64_t j_stride = (j_len + j_batches - 1) / j_batches;
+    int64_t j_st = 0;
+    // TODO: create batches apriori to enable threading
+    for (int64_t j_end = (j_st + j_stride); j_end < j_len; j_end += j_stride) {
+      std::vector<std::pair<int64_t, dtype *> > Z;
       for (int64_t i = 0; i < T_csf.nnz_level[l]; i++) {
         int64_t idx_i = T_csf.idx[l][i];
-        std::vector<std::pair<int64_t, dtype *> > Z_i;
+        // for (j, T_ij) in T_i
         int64_t st_ptr_j = T_csf.ptr[l][i];
         int64_t en_ptr_j = T_csf.ptr[l][i + 1];
         for (int64_t j = st_ptr_j; j < en_ptr_j; j++) {
-          int64_t idx_j = T_csf.idx[l - 1][j];
-          dtype * Z_ij = new dtype[ur]();
-          int64_t st_ptr_k = T_csf.ptr[l - 1][j];
-          int64_t en_ptr_k = T_csf.ptr[l - 1][j + 1];
-          for (int64_t r = 0; r < ur; r++) {
-            for (int64_t k = st_ptr_k; k < en_ptr_k; k++) {
-              int64_t idx_k = T_csf.idx[l - 2][k];
-              Z_ij[r] += pairs[T_csf.ptr[l - 2][k]].d * arrs[0][idx_k * mat_strides[0] + r * mat_strides[1]];
-            }
-          }
-          Z_i.push_back(
-              std::make_pair<int64_t, dtype *>(int64_t(idx_j), &Z_ij[0]));
-        }
-        for (auto x : Z_i) {
-          for (int64_t r = 0; r < ur; r++) {
-            for (int64_t s = 0; s < vr; s++) {
-              arr_idx = r * oldas[0] + s * oldas[1] + idx_i * oldas[2];
-              redist_data[arr_idx] += x.second[r] * arrs[1][x.first * mat_strides[2] + s * mat_strides[3]];
-            }
-          }
-          delete x.second;
-        }
-      }
-    }
-
-    if (op_mode == 1) {
-      Timer t_csf("CTF_int::CSF tree construction");
-      t_csf.start();
-      MPI_Barrier(MPI_COMM_WORLD);
-      stime = MPI_Wtime();
-      //CTF_int::CSF<dtype> T_csf(T);
-      CTF_int::CSF<dtype> T_csf(npair, pairs, T->order, T->lens, phys_phase);
-      t_csf.stop();
-      MPI_Barrier(MPI_COMM_WORLD);
-      etime = MPI_Wtime();
-      if(T->wrld->rank == 0) printf("CTF_int::CSF tree construction: %1.2lf\n", (etime - stime));
-      //T_csf.print();
-      int64_t j_batches = 1;
-      int64_t j_len = T->pad_edge_len[1] / phys_phase[1];
-      int64_t j_stride = (j_len + j_batches - 1) / j_batches;
-      int64_t j_st = 0;
-      // TODO: create batches apriori to enable threading
-      for (int64_t j_end = (j_st + j_stride); j_end <= j_len; j_end += j_stride) {
-        std::vector<std::pair<int64_t, dtype *> > Z;
-        for (int64_t i = 0; i < T_csf.nnz_level[l]; i++) {
-          int64_t idx_i = T_csf.idx[l][i];
-          int64_t st_ptr_j = T_csf.ptr[l][i];
-          int64_t en_ptr_j = T_csf.ptr[l][i + 1];
-          for (int64_t j = st_ptr_j; j < en_ptr_j; j++) {
+          if (j >= j_st && j < j_end) {
             int64_t idx_j = T_csf.idx[l - 1][j];
-            if (idx_j >= j_st && idx_j < j_end) {
-              dtype *Z_ij = new dtype[ur]();
-              int64_t st_ptr_k = T_csf.ptr[l - 1][j];
-              int64_t en_ptr_k = T_csf.ptr[l - 1][j + 1];
-              for (int64_t r = 0; r < ur; r++) {
-                for (int64_t k = st_ptr_k; k < en_ptr_k; k++) {
-                  int64_t idx_k = T_csf.idx[l - 2][k];
-                  Z_ij[r] +=
-                      pairs[T_csf.ptr[l - 2][k]].d *
-                      arrs[0][idx_k * mat_strides[0] + r * mat_strides[1]];
-                }
-              }
-              int64_t idx_ij = idx_i * ldas[2] + idx_j * ldas[1];
-              Z.push_back(
-                  std::make_pair<int64_t, dtype *>(int64_t(idx_ij), &Z_ij[0]));
-            }
-          }
-        }
-        for (auto x : Z) {
-          int64_t idx_i = (x.first / ldas[2]) % T->lens[2];
-          int64_t idx_j = (x.first / ldas[1]) % T->lens[1];
-          // TODO: threading tied to the value of idx_j?
-          for (int64_t r = 0; r < ur; r++) {    // kR
-            for (int64_t s = 0; s < vr; s++) {  // iR
-              arr_idx = r * oldas[0] + idx_j * oldas[1] + s * oldas[2];
-              redist_data[arr_idx] +=
-                  x.second[r] *
-                  arrs[1][idx_i * mat_strides[2] + s * mat_strides[3]];
-            }
-          }
-          delete x.second;
-        }
-        j_st = j_end;
-      }
-    }
-
-#ifdef OTHER_OPTIMIZATIONS
-    // TODO: batches on k to enable threading?
-    // map <ik, contracted_mode_j> Z;
-    //int64_t nnz_ik = T_csf.nnz_level[0] * T_csf.nnz_level[2];
-    //std::vector<std::pair<int64_t, dtype *> > Z(nnz_ik, std::make_pair<int64_t, dtype *>(int64_t(-1), nullptr));
-    if (op_mode == 0) {   
-      typename std::unordered_map<int64_t, dtype *> Z;
-      typename std::unordered_map<int64_t, dtype *>::iterator zit;
-      // can use for(k) {for(j) and then move the tree and collect for indices that match k; the outer most k loop should cover all indices}
-      // use i from the CTF_int::CSF tree and idx_k to compute unique position in Z and store in the buffer which is pre allocated to nnz_level[i] * (T->pad_edge_len[0] / phys_phase[0])
-      // can use a map of map to remove the idx_ik computation
-      // all at once contraction
-      for (int64_t i = 0; i < T_csf.nnz_level[l]; i++) {
-        int64_t idx_i = T_csf.idx[l][i];
-        int64_t st_ptr_j = T_csf.ptr[l][i];
-        int64_t en_ptr_j = T_csf.ptr[l][i+1];
-        for (int64_t j = st_ptr_j; j < en_ptr_j; j++) {
-          int64_t idx_j = T_csf.idx[l-1][j];
-          int64_t st_ptr_k = T_csf.ptr[l-1][j];
-          int64_t en_ptr_k = T_csf.ptr[l-1][j+1];
-          for (int64_t r = 0; r < ur; r++) {
-            for (int64_t k = st_ptr_k; k < en_ptr_k; k++) {
-              int64_t idx_k = T_csf.idx[l-2][k];
-              int64_t idx_ik = idx_k * ldas[0] + idx_i * ldas[2];
-              zit = Z.find(idx_ik);
-              if (zit == Z.end()) {
-                dtype *Z_ik = new dtype[ur]();
-                Z_ik[r] += pairs[T_csf.ptr[l-2][k]].d * arrs[0][idx_j * mat_strides[0] + r * mat_strides[1]];
-                Z.insert({idx_ik, &Z_ik[0]});
-              }
-              else {
-                zit->second[r] += pairs[T_csf.ptr[l-2][k]].d * arrs[0][idx_j * mat_strides[0] + r * mat_strides[1]];
+            dtype *Z_ij = new dtype[ur]();
+            int64_t st_ptr_k = T_csf.ptr[l - 1][j];
+            int64_t en_ptr_k = T_csf.ptr[l - 1][j + 1];
+            for (int64_t r = 0; r < ur; r++) {
+              for (int64_t k = st_ptr_k; k < en_ptr_k; k++) {
+                int64_t idx_k = T_csf.idx[l - 2][k];
+                idx_k = (idx_k % T->lens[0]) / phys_phase[0];
+                Z_ij[r] += pairs[T_csf.ptr[l - 2][k]].d * arrs[0][idx_k * mat_strides[0] + r * mat_strides[1]];
               }
             }
+            int64_t idx_ij = idx_i * ldas[2] + idx_j * ldas[1];
+            Z_i.push_back(std::make_pair<int64_t, dtype *>(int64_t(idx_ij), &Z_ij[0]));
           }
         }
       }
       for (auto x : Z) {
         int64_t idx_i = (x.first / ldas[2]) % T->lens[2];
-        int64_t idx_k = (x.first / ldas[0]) % T->lens[0];
+        int64_t idx_j = (x.first / ldas[1]) % T->lens[1];
         // TODO: threading tied to the value of idx_j?
-        for (int64_t r = 0; r < ur; r++) { //jR
+        int64_t edge_idx_i = (idx_i % T->lens[2]) / phys_phase[2];
+        for (int64_t r = 0; r < ur; r++) { //kR
           for (int64_t s = 0; s < vr; s++) { //iR
-            arr_idx = idx_k * oldas[0] + r * oldas[1] + s * oldas[2];
-            redist_data[arr_idx] += x.second[r] * arrs[1][idx_i * mat_strides[2] + s * mat_strides[3]];
+            arr_idx = r * ldas[0] + idx_j * ldas[1] + s * ldas[2];
+            op_pairs[arr_idx].k = r * ldas[0] + idx_j * ldas[1] + s * ldas[2];
+            op_pairs[arr_idx].d += x.second[r] * arrs[1][edge_idx_i * mat_strides[2] + s * mat_strides[3]];
           }
         }
-        delete x.second;
       }
+      j_st = j_end;
     }
+    X->write(op_npairs, op_pairs);
+    X->print();
+#endif
 
-    if (op_mode == 0) {
-      for (int64_t i = 0; i < T_csf.nnz_level[l]; i++) {
-        int64_t idx_i = T_csf.idx[l][i];
-        int64_t st_ptr_j = T_csf.ptr[l][i];
-        int64_t en_ptr_j = T_csf.ptr[l][i+1];
-        for (int64_t j = st_ptr_j; j < en_ptr_j; j++) {
-          int64_t idx_j = T_csf.idx[l-1][j];
-          int64_t st_ptr_k = T_csf.ptr[l-1][j];
-          int64_t en_ptr_k = T_csf.ptr[l-1][j+1];
-          // thread over k_batches
+#ifdef MODE_2 0
+    // TODO: batches on k to enable threading?
+    // map <ik, contracted_mode_j> Z;
+    std::unordered_map<int64_t, dtype *> Z;
+    std::unordered_map<int64_t, dtype *>::iterator zit;
+    for (int64_t i = 0; i < T_csf.nnz_level[l]; i++) {
+      int64_t idx_i = T_csf.idx[l][i];
+      int64_t st_ptr_j = T_csf.ptr[l][i];
+      int64_t en_ptr_j = T_csf.ptr[l][i+1];
+      for (int64_t j = st_ptr_j; j < en_ptr_j; j++) {
+        int64_t idx_j = T_csf.idx[l-1][j];
+        int64_t st_ptr_k = T_csf.ptr[l-1][j];
+        int64_t en_ptr_k = T_csf.ptr[l-1][j+1];
+        for (int64_t r = 0; r < ur; r++) {
           for (int64_t k = st_ptr_k; k < en_ptr_k; k++) {
             int64_t idx_k = T_csf.idx[l-2][k];
-            for (int64_t r = 0; r < vr; r++) { //iR
-              for (int64_t s = 0; s < ur; s++) { //jR
-                arr_idx = idx_k * oldas[0] + s * oldas[1] + r * oldas[2];
-                redist_data[arr_idx] += pairs[T_csf.ptr[l - 2][k]].d * arrs[0][idx_j * mat_strides[0] + s * mat_strides[1]] * arrs[1][idx_i * mat_strides[2] + r * mat_strides[3]];
-              }
-            }
-          }
-        }
-      }
-    }
-    if (op_mode == 0) {
-      // thread over ur; declare op_ij[] per thread
-#ifdef _OPENMP
-      #pragma omp parallel for
-#else
-      dtype op_ij[vr];
-#endif
-      for (int64_t s = 0; s < ur; s++) { //jR
-#ifdef _OPENMP
-        dtype op_ij[vr];
-#endif
-        for (int64_t i = 0; i < T_csf.nnz_level[l]; i++) {
-          int64_t idx_i = T_csf.idx[l][i];
-          int64_t st_ptr_j = T_csf.ptr[l][i];
-          int64_t en_ptr_j = T_csf.ptr[l][i+1];
-          for (int64_t j = st_ptr_j; j < en_ptr_j; j++) {
-            int64_t idx_j = T_csf.idx[l-1][j];
-            int64_t st_ptr_k = T_csf.ptr[l-1][j];
-            int64_t en_ptr_k = T_csf.ptr[l-1][j+1];
-            int64_t num_k = en_ptr_k - st_ptr_k;
-            if (num_k > 1) {
-              for (int64_t r = 0; r < vr; r++) {
-                op_ij[r] =  arrs[0][idx_j * mat_strides[0] + s * mat_strides[1]] * arrs[1][idx_i * mat_strides[2] + r * mat_strides[3]];
-              }
-              for (int64_t k = st_ptr_k; k < en_ptr_k; k++) {
-                int64_t idx_k = T_csf.idx[l-2][k];
-                for (int64_t r = 0; r < vr; r++) {
-                  arr_idx = idx_k * oldas[0] + s * oldas[1] + r * oldas[2];
-                  redist_data[arr_idx] +=  op_ij[r] * pairs[T_csf.ptr[l-2][k]].d;
-                }
-              }
+            int64_t idx_ik = idx_i * ldas[2] + idx_k * ldas[0];
+            zit = Z.find(idx_ik);
+            if (zit != Z.end()) {
+              zit->second[r] += pairs.d * V
             }
             else {
-              for (int64_t k = st_ptr_k; k < en_ptr_k; k++) {
-                int64_t idx_k = T_csf.idx[l-2][k];
-                for (int64_t r = 0; r < vr; r++) {
-                  arr_idx = idx_k * oldas[0] + s * oldas[1] + r * oldas[2];
-                  redist_data[arr_idx] +=  arrs[0][idx_j * mat_strides[0] + s * mat_strides[1]] * arrs[1][idx_i * mat_strides[2] + r * mat_strides[3]] * pairs[T_csf.ptr[l-2][k]].d;
-                }
-              }
+              dtype * Z_ik = new dtype[ur]();
+              Z_ik[r] = pairs.d * V;
+              Z.insert({idx_ik, &Z_ik[0]});
             }
           }
         }
       }
     }
 #endif
-    if (op_mode == 0) {
-      Pair<dtype> * copy_pairs = new Pair<dtype>[npair];
-      MPI_Barrier(MPI_COMM_WORLD);
-      stime = MPI_Wtime();
-      for (int64_t i = 0; i < npair; i++) {
-        int64_t k = pairs[i].k;
-        copy_pairs[i].k = ((k / ldas[0]) % T->lens[0]) * ldas[2] + ((k / ldas[1]) % T->lens[1]) * ldas[1] + ((k / ldas[2]) % T->lens[2]) * ldas[0];
-        copy_pairs[i].d = pairs[i].d;
-      }
-      std::sort((Pair<dtype>*)copy_pairs, ((Pair<dtype>*)copy_pairs)+npair,
-                [](const Pair<dtype>& f, const Pair<dtype>& s) -> bool{
-                  return f.k < s.k;
-                });
-      MPI_Barrier(MPI_COMM_WORLD);
-      etime = MPI_Wtime();
-      if(T->wrld->rank == 0) printf("Transpose: %1.2lf\n", (etime - stime));
-      Timer t_csf("CTF_int::CSF tree construction");
-      t_csf.start();
-      MPI_Barrier(MPI_COMM_WORLD);
-      stime = MPI_Wtime();
-      int * phys_phaseT = (int *)malloc(T->order * sizeof(int));
-      phys_phaseT[0] = phys_phase[2];
-      phys_phaseT[1] = phys_phase[1];
-      phys_phaseT[2] = phys_phase[0];
-      CTF_int::CSF<dtype> T_csf(npair, copy_pairs, T->order, T->lens, phys_phaseT);
-      t_csf.stop();
-      MPI_Barrier(MPI_COMM_WORLD);
-      etime = MPI_Wtime();
-      if(T->wrld->rank == 0) printf("CTF_int::CSF tree construction: %1.2lf\n", (etime - stime));
-
-      for (int64_t i = 0; i < T_csf.nnz_level[l]; i++) {
-        int64_t idx_i = T_csf.idx[l][i];
-        std::vector<std::pair<int64_t, dtype *> > Z_i;
-        int64_t st_ptr_j = T_csf.ptr[l][i];
-        int64_t en_ptr_j = T_csf.ptr[l][i + 1];
-        for (int64_t j = st_ptr_j; j < en_ptr_j; j++) {
-          int64_t idx_j = T_csf.idx[l - 1][j];
-          dtype * Z_ij = new dtype[vr]();
-          int64_t st_ptr_k = T_csf.ptr[l - 1][j];
-          int64_t en_ptr_k = T_csf.ptr[l - 1][j + 1];
-          for (int64_t r = 0; r < vr; r++) {
-            for (int64_t k = st_ptr_k; k < en_ptr_k; k++) {
-              int64_t idx_k = T_csf.idx[l - 2][k];
-              Z_ij[r] += copy_pairs[T_csf.ptr[l - 2][k]].d * arrs[1][idx_k * mat_strides[2] + r * mat_strides[3]];
-            }
-          }
-          Z_i.push_back(
-              std::make_pair<int64_t, dtype *>(int64_t(idx_j), &Z_ij[0]));
-        }
-        for (auto x : Z_i) {
-          for (int64_t r = 0; r < vr; r++) {
-            for (int64_t s = 0; s < ur; s++) {
-              arr_idx = idx_i * oldas[0] + s * oldas[1] + r * oldas[2];
-              redist_data[arr_idx] += x.second[r] * arrs[0][x.first * mat_strides[0] + s * mat_strides[1]];
-            }
-          }
-          delete x.second;
-        }
-      }
-      delete [] copy_pairs;
-    }
-    t_ttmc_work.stop();
-    MPI_Barrier(MPI_COMM_WORLD);
-    etime = MPI_Wtime();
-    if(T->wrld->rank == 0) printf("TTMC work: %1.2lf\n", (etime - stime));
-    Timer t_ttmc_red("TTMC_Reduce");
-    t_ttmc_red.start();
-    MPI_Barrier(MPI_COMM_WORLD);
-    stime = MPI_Wtime();
-    int red_len = T->wrld->np / phys_phase[op_mode];
-    if (red_len > 1) {
-      int64_t sz = X_redist->size;
-      int jr = T->edge_map[op_mode].calc_phys_rank(T->topo);
-      MPI_Comm cm;
-      MPI_Comm_split(T->wrld->comm, jr, T->wrld->rank, &cm);
-      int cmr;
-      MPI_Comm_rank(cm, &cmr);
-      if (cmr == 0) {
-        MPI_Reduce(MPI_IN_PLACE, redist_data, sz, T->sr->mdtype(), T->sr->addmop(), 0, cm);
-      }
-      else {
-        MPI_Reduce(redist_data, NULL, sz, T->sr->mdtype(), T->sr->addmop(), 0, cm);
-        std::fill(redist_data, redist_data + sz, *((dtype *)T->sr->addid()));
-      }
-      MPI_Comm_free(&cm);
-    }
-    t_ttmc_red.stop();
-    MPI_Barrier(MPI_COMM_WORLD);
-    etime = MPI_Wtime();
-    if(T->wrld->rank == 0) printf("TTMC reduce: %1.2lf\n", (etime - stime));
-    Timer t_ttmc_redist_op("TTMC_Redist_OP");
-    MPI_Barrier(MPI_COMM_WORLD);
-    stime = MPI_Wtime();
-    t_ttmc_redist_op.start();
-    X->set_zero();
-    X->operator[]("ijk") += X_redist->operator[]("ijk");
-    t_ttmc_redist_op.stop();
-    MPI_Barrier(MPI_COMM_WORLD);
-    etime = MPI_Wtime();
-    if(T->wrld->rank == 0) printf("TTMC redistribute output tensor: %1.2lf\n", (etime - stime));
-    delete X_redist;
-
-    for (int i = 0; i < num_ops; i++) {
-      if (redist_mats[i] != NULL) {
-        if (redist_mats[i]->data != (char *)arrs[i])
-          T->sr->dealloc((char *)arrs[i]);
-        delete redist_mats[i];
-      }
-      else {
-        if (arrs[i] != (dtype *)mat_list[i]->data)
-          T->sr->dealloc((char *)arrs[i]);
-      }
-    }
-    free(redist_mats);
-    if (mat_strides != NULL) free(mat_strides);
-    free(par_idx);
-    free(phys_phase);
-    free(ldas);
-    free(arrs);
-    if (!T->is_sparse)
-      T->sr->pair_dealloc((char*)pairs);
-    t_ttmc.stop();
   }
-  
-  template<typename dtype>
-  void gen_multilinear(Tensor<dtype> * A, Tensor<dtype> ** Bs, int nBs, const char * einsum_expr)
-  {
-    // TODO: need to find a place for these
-    char * idx_A;
-    char ** idx_Bs;
-    // TODO: can add sanity check for einsum expression
-    CTF_int::parse_einsum(einsum_expr, &idx_A, &idx_Bs, nBs);
-    // TODO: FIXME: do away with this horrible static cast!
-    CTF_int::gen_contraction<dtype> ctrX = CTF_int::gen_contraction<dtype>(A, idx_A, (CTF_int::tensor **)Bs, nBs, idx_Bs);
-    //CTF_int::gen_contraction ctrX = CTF_int::gen_contraction(A, idx_A, (CTF_int::tensor **)Bs, nBs, idx_Bs);
-    ctrX.execute();
-    delete idx_A;
-    for (int i = 0; i < nBs; i++)
-      delete idx_Bs[i];
-    delete [] idx_Bs;
-  }
-
 }

@@ -183,6 +183,99 @@ namespace CTF_int {
   template int conv_idx<int>(int, int const *, int **, int, int const *, int **, int, int const *, int **);
   template int conv_idx<char>(int, char const *, int **, int, char const *, int **, int, char const *, int **);
 
+  template<typename type>
+  void gen_conv_idx(int                   order_A,
+                    type const *          cidx_A,
+                    int **                iidx_A,
+                    int                   nBs,
+                    int const *           order_Bs,
+                    const type * const *  cidx_Bs,
+                    int ***               iidx_Bs)
+  {
+    int n;
+    int i, j, k, l;
+    type c;
+
+    *iidx_A = (int *)CTF_int::alloc(sizeof(int) * order_A);
+
+    *iidx_Bs = (int **)CTF_int::alloc(sizeof(int *) * nBs);
+    for (i = 0; i < nBs; i++) {
+      (*iidx_Bs)[i] = (int *)CTF_int::alloc(sizeof(int) * order_Bs[i]);
+    }
+
+    // compute iidx_A 
+    n = 0;
+    for (i = 0; i < order_A; i++) {
+      c = cidx_A[i];
+      for (j = 0; j < i; j++) {
+        if (c == cidx_A[j]) {
+          (*iidx_A)[i] = (*iidx_A)[j];
+          break;
+        }
+      }
+      if (j == i) {
+        (*iidx_A)[i] = n;
+        n++;
+      }
+    }
+
+    // compute iidx_Bs
+    for (i = 0; i < nBs; i++) {
+      for (j = 0; j < order_Bs[i]; j++) {
+        c = cidx_Bs[i][j];
+        
+        // check for a match in cidx_A
+        for (k = 0; k < order_A; k++) {
+          if (c == cidx_A[k]) {
+            (*iidx_Bs)[i][j] = (*iidx_A)[k];
+            break;
+          }
+        }
+        if (k < order_A) continue;
+
+        // check for a match in previously processed cidx_Bs
+        for (k = 0; k < i; k++) {
+          for (l = 0; l < order_Bs[k]; l++) {
+            if (c == cidx_Bs[k][l]) {
+              (*iidx_Bs)[i][j] = (*iidx_Bs)[k][l];
+              break;
+            }
+          }
+          if (l < order_Bs[k]) break; 
+        }
+        if (k < i) continue;
+
+        (*iidx_Bs)[i][j] = n;
+        n++;
+      }
+    }
+  }
+  template void gen_conv_idx<char>(int, char const *, int **, int, int const *, const char * const *, int ***);
+
+  void parse_einsum(const std::string &einsum, char **cidx_A, char ***cidx_Bs,
+                    int nBs) 
+  {
+    std::string const delims = ",->";
+    *cidx_Bs = new char *[nBs];
+
+    size_t st, pos = 0;
+    int i = 0;
+    while ((st = einsum.find_first_not_of(delims, pos)) != std::string::npos) {
+      pos = einsum.find_first_of(delims, st + 1);
+      std::string sstr = einsum.substr(st, pos - st);
+      if (i == 0) {
+        *cidx_A = new char[sstr.size()];
+        std::copy(sstr.begin(), sstr.end(), *cidx_A);
+        i++;
+        continue;
+      }
+      (*cidx_Bs)[(i-1)] = new char[sstr.size()];
+      std::copy(sstr.begin(), sstr.end(), (*cidx_Bs)[(i-1)]);
+      i++;
+    }
+    IASSERT((i-1) == nBs);
+  }
+
   int64_t * conv_to_int64(int const * arr, int len){
     int64_t * iarr = (int64_t*)CTF_int::alloc(sizeof(int64_t)*len);
     for (int i=0; i<len; i++){
@@ -657,5 +750,6 @@ namespace CTF_int {
     }
     return is_new;
   }
+
 
 }

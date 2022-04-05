@@ -35,8 +35,10 @@ uninstall:
 	rm $(INSTALL_DIR)/lib/libctf.so
 	rm $(INSTALL_DIR)/include/ctf.hpp
 
-
-EXAMPLES = algebraic_multigrid apsp bitonic_sort btwn_central ccsd checkpoint dft_3D fft force_integration force_integration_sparse jacobi matmul neural_network particle_interaction qinformatics recursive_matmul scan sparse_mp3 sparse_permuted_slice spectral_element spmv sssp strassen trace mis mis2 ao_mo_transf block_sparse checkpoint_sparse hosvd mttkrp fft_with_idx_partition
+EXAMPLES = generalized
+#partition
+#EXAMPLES = mttkrp ttmc_profile
+#EXAMPLES = algebraic_multigrid apsp bitonic_sort btwn_central ccsd checkpoint dft_3D fft force_integration force_integration_sparse jacobi matmul neural_network particle_interaction qinformatics recursive_matmul scan sparse_mp3 sparse_permuted_slice spectral_element spmv sssp strassen trace mis mis2 ao_mo_transf block_sparse checkpoint_sparse hosvd mttkrp fft_with_idx_partition
 TESTS = bivar_function bivar_transform ccsdt_map_test ccsdt_t3_to_t2 dft diag_ctr diag_sym endomorphism_cust endomorphism_cust_sp endomorphism gemm_4D multi_tsr_sym permute_multiworld readall_test readwrite_test repack scalar speye sptensor_sum subworld_gemm sy_times_ns test_suite univar_function weigh_4D  reduce_bcast
 
 BENCHMARKS = bench_contraction bench_nosym_transp bench_redistribution model_trainer
@@ -109,16 +111,16 @@ ctflibso: ctf_objs ctf_ext_objs
 	$(FCXX) -shared -o $(BDIR)/lib_shared/libctf.so $(ODIR)/*.o $(OEDIR)/*.o  $(SO_LIB_PATH) $(SO_LIB_FILES) $(LDFLAGS)
 
 
-PYTHON_SRC_FILES=src_python/ctf/*.pyx src_python/ctf/__init__.py
+PYTHON_SRC_FILES=src_python/ctf/core.pyx src_python/ctf/random.pyx
 
 .PHONY: python
-python: $(BDIR)/lib_python/ctf/tensor.o
+python: $(BDIR)/lib_python/ctf/core.o
 
-$(BDIR)/lib_python/ctf/tensor.o: $(BDIR)/setup.py $(BDIR)/lib_shared/libctf.so $(PYTHON_SRC_FILES)
+$(BDIR)/lib_python/ctf/core.o: $(BDIR)/setup.py $(BDIR)/lib_shared/libctf.so $(PYTHON_SRC_FILES)
 	cd src_python; \
 	ln -sf $(BDIR)/setup.py setup.py; \
-	mkdir -p $(BDIR)/lib_python/ctf && cp ctf/__init__.py $(BDIR)/lib_python/ctf/ ; \
-	LDFLAGS="-L$(BDIR)/lib_shared" python setup.py build_ext -j4 --force -b $(BDIR)/lib_python/ -t $(BDIR)/lib_python/; \
+	mkdir -p $(BDIR)/lib_python/ctf && cp ctf/__init__.py $(BDIR)/lib_python/ctf/; \
+	LDFLAGS="-L$(BDIR)/lib_shared" python setup.py build_ext --force -b $(BDIR)/lib_python/ -t $(BDIR)/lib_python/; \
 	rm setup.py; \
 	cd ..;
 
@@ -130,7 +132,7 @@ pip: $(BDIR)/setup.py $(BDIR)/lib_shared/libctf.so $(PYTHON_SRC_FILES)
 	cd src_python; \
 	ln -sf $(BDIR)/setup.py setup.py; \
 	mkdir -p $(BDIR)/lib_python/ctf && cp ctf/__init__.py $(BDIR)/lib_python/ctf/; \
-	pip install --force -b $(BDIR)/lib_python/ . --upgrade; \
+	pip install --force $(BDIR)/lib_python/ . --upgrade; \
 	rm setup.py; \
 	cd ..;
 
@@ -141,10 +143,12 @@ python_uninstall:
 .PHONY: python_test
 .NOTPARALLEL: python_test
 ifneq (,$(findstring USE_SCALAPACK,$(DEFS)))
-python_test: python_base_test python_fancyindex_test python_einsum_test python_ufunc_test python_dot_test python_sparse_test python_la_test python_partition_test
+python_test: python_einsum_test
+#python_test: python_base_test python_fancyindex_test python_einsum_test python_ufunc_test python_dot_test python_sparse_test python_la_test python_partition_test
 	echo "Cyclops Python tests completed."
 else
-python_test: python_base_test python_fancyindex_test python_einsum_test python_ufunc_test python_dot_test python_sparse_test python_partition_test
+python_test: python_einsum_test
+#python_test: python_base_test python_fancyindex_test python_einsum_test python_ufunc_test python_dot_test python_sparse_test python_partition_test
 	echo "Cyclops Python tests completed."
 endif
 
@@ -162,75 +166,75 @@ python_test%: python_base_test% python_fancyindex_test% python_einsum_test% pyth
 endif
 
 .PHONY: python_einsum_test
-python_einsum_test: $(BDIR)/lib_python/ctf/tensor.o
+python_einsum_test: $(BDIR)/lib_python/ctf/core.o
 	LD_LIBRARY_PATH="$(LD_LIBRARY_PATH):$(BDIR)/lib_shared:$(BDIR)/lib_python:$(LD_LIB_PATH)" PYTHONPATH="$(PYTHONPATH):$(BDIR)/lib_python" python ./test/python/test_einsum.py
 
 .PHONY: python_einsum_test%
-python_einsum_test%: $(BDIR)/lib_python/ctf/tensor.o
+python_einsum_test%: $(BDIR)/lib_python/ctf/core.o
 	LD_LIBRARY_PATH="$(LD_LIBRARY_PATH):$(BDIR)/lib_shared:$(BDIR)/lib_python:$(LD_LIB_PATH)" PYTHONPATH="$(PYTHONPATH):$(BDIR)/lib_python" mpirun -np $* python ./test/python/test_einsum.py
 
 .PHONY: python_ufunc_test
-python_ufunc_test: $(BDIR)/lib_python/ctf/tensor.o
+python_ufunc_test: $(BDIR)/lib_python/ctf/core.o
 	LD_LIBRARY_PATH="$(LD_LIBRARY_PATH):$(BDIR)/lib_shared:$(BDIR)/lib_python:$(LD_LIB_PATH)" PYTHONPATH="$(PYTHONPATH):$(BDIR)/lib_python" python ./test/python/test_ufunc.py
 
 .PHONY: python_ufunc_test%
-python_ufunc_test%: $(BDIR)/lib_python/ctf/tensor.o
+python_ufunc_test%: $(BDIR)/lib_python/ctf/core.o
 	LD_LIBRARY_PATH="$(LD_LIBRARY_PATH):$(BDIR)/lib_shared:$(BDIR)/lib_python:$(LD_LIB_PATH)" PYTHONPATH="$(PYTHONPATH):$(BDIR)/lib_python" mpirun -np $* python ./test/python/test_ufunc.py
 
 .PHONY: python_fancyindex_test
-python_fancyindex_test: $(BDIR)/lib_python/ctf/tensor.o
+python_fancyindex_test: $(BDIR)/lib_python/ctf/core.o
 	LD_LIBRARY_PATH="$(LD_LIBRARY_PATH):$(BDIR)/lib_shared:$(BDIR)/lib_python:$(LD_LIB_PATH)" PYTHONPATH="$(PYTHONPATH):$(BDIR)/lib_python" python ./test/python/test_fancyindex.py
 
 .PHONY: python_fancyindex_test%
-python_fancyindex_test%: $(BDIR)/lib_python/ctf/tensor.o
+python_fancyindex_test%: $(BDIR)/lib_python/ctf/core.o
 	LD_LIBRARY_PATH="$(LD_LIBRARY_PATH):$(BDIR)/lib_shared:$(BDIR)/lib_python:$(LD_LIB_PATH)" PYTHONPATH="$(PYTHONPATH):$(BDIR)/lib_python" mpirun -np $* python ./test/python/test_fancyindex.py
 
 .PHONY: python_base_test
-python_base_test: $(BDIR)/lib_python/ctf/tensor.o
+python_base_test: $(BDIR)/lib_python/ctf/core.o
 	LD_LIBRARY_PATH="$(LD_LIBRARY_PATH):$(BDIR)/lib_shared:$(BDIR)/lib_python:$(LD_LIB_PATH)" PYTHONPATH="$(PYTHONPATH):$(BDIR)/lib_python" python ./test/python/test_base.py
 
 .PHONY: python_base_test%
-python_base_test%: $(BDIR)/lib_python/ctf/tensor.o
+python_base_test%: $(BDIR)/lib_python/ctf/core.o
 	LD_LIBRARY_PATH="$(LD_LIBRARY_PATH):$(BDIR)/lib_shared:$(BDIR)/lib_python:$(LD_LIB_PATH)" PYTHONPATH="$(PYTHONPATH):$(BDIR)/lib_python" mpirun -np $* python ./test/python/test_base.py
 
 .PHONY: python_la_test
-python_la_test: $(BDIR)/lib_python/ctf/tensor.o
+python_la_test: $(BDIR)/lib_python/ctf/core.o
 	LD_LIBRARY_PATH="$(LD_LIBRARY_PATH):$(BDIR)/lib_shared:$(BDIR)/lib_python:$(LD_LIB_PATH)" PYTHONPATH="$(PYTHONPATH):$(BDIR)/lib_python" python ./test/python/test_la.py;
 
 .PHONY: python_la_test%
-python_la_test%: $(BDIR)/lib_python/ctf/tensor.o
+python_la_test%: $(BDIR)/lib_python/ctf/core.o
 	LD_LIBRARY_PATH="$(LD_LIBRARY_PATH):$(BDIR)/lib_shared:$(BDIR)/lib_python:$(LD_LIB_PATH)" PYTHONPATH="$(PYTHONPATH):$(BDIR)/lib_python" mpirun -np $* python ./test/python/test_la.py;
 
 .PHONY: python_dot_test
-python_dot_test: $(BDIR)/lib_python/ctf/tensor.o
+python_dot_test: $(BDIR)/lib_python/ctf/core.o
 	LD_LIBRARY_PATH="$(LD_LIBRARY_PATH):$(BDIR)/lib_shared:$(BDIR)/lib_python:$(LD_LIB_PATH)" PYTHONPATH="$(PYTHONPATH):$(BDIR)/lib_python" python ./test/python/test_dot.py;
 
 .PHONY: python_dot_test%
-python_dot_test%: $(BDIR)/lib_python/ctf/tensor.o
+python_dot_test%: $(BDIR)/lib_python/ctf/core.o
 	LD_LIBRARY_PATH="$(LD_LIBRARY_PATH):$(BDIR)/lib_shared:$(BDIR)/lib_python:$(LD_LIB_PATH)" PYTHONPATH="$(PYTHONPATH):$(BDIR)/lib_python" mpirun -np $* python ./test/python/test_dot.py;
 
 .PHONY: python_sparse_test
-python_sparse_test: $(BDIR)/lib_python/ctf/tensor.o
+python_sparse_test: $(BDIR)/lib_python/ctf/core.o
 	LD_LIBRARY_PATH="$(LD_LIBRARY_PATH):$(BDIR)/lib_shared:$(BDIR)/lib_python:$(LD_LIB_PATH)" PYTHONPATH="$(PYTHONPATH):$(BDIR)/lib_python" python ./test/python/test_sparse.py;
 
 .PHONY: python_sparse_test%
-python_sparse_test%: $(BDIR)/lib_python/ctf/tensor.o
+python_sparse_test%: $(BDIR)/lib_python/ctf/core.o
 	LD_LIBRARY_PATH="$(LD_LIBRARY_PATH):$(BDIR)/lib_shared:$(BDIR)/lib_python:$(LD_LIB_PATH)" PYTHONPATH="$(PYTHONPATH):$(BDIR)/lib_python" mpirun -np $* python ./test/python/test_sparse.py;
 
 .PHONY: python_partition_test
-python_partition_test: $(BDIR)/lib_python/ctf/tensor.o
+python_partition_test: $(BDIR)/lib_python/ctf/core.o
 	LD_LIBRARY_PATH="$(LD_LIBRARY_PATH):$(BDIR)/lib_shared:$(BDIR)/lib_python:$(LD_LIB_PATH)" PYTHONPATH="$(PYTHONPATH):$(BDIR)/lib_python" python ./test/python/test_partition.py;
 
 .PHONY: python_partition_test%
-python_partition_test%: $(BDIR)/lib_python/ctf/tensor.o
+python_partition_test%: $(BDIR)/lib_python/ctf/core.o
 	LD_LIBRARY_PATH="$(LD_LIBRARY_PATH):$(BDIR)/lib_shared:$(BDIR)/lib_python:$(LD_LIB_PATH)" PYTHONPATH="$(PYTHONPATH):$(BDIR)/lib_python" mpirun -np $* python ./test/python/test_partition.py;
 
 .PHONY: test_live
-test_live: $(BDIR)/lib_python/ctf/tensor.o
+test_live: $(BDIR)/lib_python/ctf/core.o
 	LD_LIBRARY_PATH="$(LD_LIBRARY_PATH):$(BDIR)/lib_shared:$(BDIR)/lib_python:$(LD_LIB_PATH)" PYTHONPATH="$(PYTHONPATH):$(BDIR)/lib_python" ipython -i -c "import numpy as np; import ctf"
 
 .PHONY: test_jupyter
-test_jupyter: $(BDIR)/lib_python/ctf/tensor.o
+test_jupyter: $(BDIR)/lib_python/ctf/core.o
 	LD_LIBRARY_PATH="$(LD_LIBRARY_PATH):$(BDIR)/lib_shared:$(BDIR)/lib_python:$(LD_LIB_PATH)" PYTHONPATH="$(PYTHONPATH):$(BDIR)/lib_python" jupyter-notebook
 
 
@@ -259,10 +263,10 @@ clean_py:
 	rm -rf $(BDIR)/src_python/build
 	rm -rf $(BDIR)/src_python/__pycache__
 	rm -rf $(BDIR)/src_python/ctf/__pycache__
-	rm -f $(BDIR)/lib_python/ctf/*.o
-	rm -f $(BDIR)/lib_python/ctf/*.o
-	rm -f $(BDIR)/lib_python/ctf/*.*so
-	rm -f $(BDIR)/lib_python/ctf/*.*so
+	rm -f $(BDIR)/lib_python/ctf/core.o
+	rm -f $(BDIR)/lib_python/ctf/random.o
+	rm -f $(BDIR)/lib_python/ctf/core.*so
+	rm -f $(BDIR)/lib_python/ctf/random.*so
 	rm -rf $(BDIR)/lib_python/ctf/__pycache__
 
 

@@ -7,7 +7,7 @@ namespace CTF {
   class Tensor;
   
   class Idx_Tensor;
-
+  
   /**
    * \brief Compute updates to entries in tensor A based on matrices or vectors in mat_list (tensor times tensor products).
    *        Takes products of entries of A with multilinear dot products of columns of given matrices.
@@ -58,6 +58,12 @@ namespace CTF {
   */
   template<typename dtype>
   void Solve_Factor(Tensor<dtype> * T, Tensor<dtype> ** mat_list, Tensor<dtype> * RHS, int mode, bool aux_mode_first);
+
+  template<typename dtype>
+  void TTMC(Tensor<dtype> * T, Tensor<dtype> * X, int num_ops, int const * modes, Tensor<dtype> ** mat_list, bool aux_mode_first);
+  
+  template<typename dtype>
+  void gen_multilinear(Tensor<dtype> * A, Tensor<dtype> ** B, int nBs, const char * einsum_expr);
 }
 
 #endif

@@ -53,14 +53,18 @@ namespace CTF_int {
       double v;
       int ptr = 0;
       int aptr;
+      //std::cout << lvals[i] << std::endl;
       sscanf(lvals[i]+ptr, "%ld%n", ind+0, &aptr);
+      //std::cout << "ind[0]: " << ind[0] << std::endl;
       ptr += aptr;
       for (int j=1; j<order; j++){
         sscanf(lvals[i]+ptr, " %ld%n", ind+j, &aptr);
+        //std::cout << "ind[j]: " << ind[j] << std::endl;
         ptr += aptr;
       }
       if (with_vals)
         sscanf(lvals[i]+ptr, get_fmt<dtype>(), &v);
+      //std::cout << "val: " << v << std::endl;
       int64_t lda = 1;
       pairs[i].k = 0;
       if (rev_order){
@@ -74,6 +78,7 @@ namespace CTF_int {
           lda *= lens[j];
         }
       }
+      //std::cout << "pairs[i].k: " << pairs[i].k << std::endl;
       if (with_vals)
         pairs[i].d = v;
       else
@@ -173,15 +178,23 @@ namespace CTF_int {
     MPI_File_get_size(fh, &filesize); //return in bytes
 
     localsize = filesize/dw->np;
+    printf("np: %d\n", dw->np);
+    std::cout << "localsize: " << localsize << std::endl;
     start = dw->rank * localsize;
+    std::cout << "dw->rank: " << dw->rank << std::endl;
     end = start + localsize;
+    std::cout << "start: " << start << std::endl;
     end += overlap;
 
     if (dw->rank  == dw->np-1) end = filesize;
+    std::cout << "end: " << end << std::endl;
     localsize = end - start; //OK
 
     chunk = (char*)malloc( (localsize + 1)*sizeof(char));
     MPI_File_read_at_all(fh, start, chunk, localsize, MPI_CHAR, &status);
+    int ccount;
+    MPI_Get_count(&status, MPI_CHAR, &ccount);
+    std::cout << "ccount: " << ccount << std::endl;
     chunk[localsize] = '\0';
 
     int64_t locstart=0, locend=localsize;
@@ -195,6 +208,7 @@ namespace CTF_int {
       locend++;
     }
     localsize = locend-locstart; //OK
+    std::cout << "2: localsize: " << localsize << std::endl;
 
     char *data = (char *)CTF_int::alloc((localsize+1)*sizeof(char));
     memcpy(data, &(chunk[locstart]), localsize);
@@ -203,8 +217,13 @@ namespace CTF_int {
 
     //printf("[%d] local chunk = [%ld,%ld) / %ld\n", myid, start+locstart, start+locstart+localsize, filesize);
     for ( i=0; i<localsize; i++){
-      if (data[i] == '\n') ned++;
+      //printf("%d ", data[i]);
+      if (data[i] == '\n') {
+        //std::cout << "end line" << std::endl;
+        ned++;
+      }
     }
+    std::cout << "ned: " << ned << std::endl;
     //printf("[%d] ned= %ld\n",myid, ned);
 
     (*datastr) = (char **)CTF_int::alloc(std::max(ned,(int64_t)1)*sizeof(char *));
@@ -212,9 +231,12 @@ namespace CTF_int {
 
     for ( i=1; i < ned; i++)
       (*datastr)[i] = strtok(NULL, "\n");
-    if ((*datastr)[0] == NULL)
+    if ((*datastr)[0] == NULL) {
+      printf("dealloc data\n");
       CTF_int::cdealloc(data); 
+    }
     MPI_File_close(&fh);
+    printf("return ned\n");
 
     return ned;
   }

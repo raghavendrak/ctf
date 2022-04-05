@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+#!/bin/bash
 #configure script adapted from Aquarius software (https://github.cxxom/devinamatthews/aquarius)
 
 
@@ -106,7 +106,7 @@ function testldlink
   int main(){ return 0; }
 EOF
   if [ $IS_APPLE_CLANG -eq 0 ]; then
-    TMP_LD_LIB_PATH=${1//"-L"/"-Wl,-rpath="}
+    TMP_LD_LIB_PATH=${1//"-L"/"-Wl,-rpath "}
   fi
   
   TMP_LD_LIB_PATH="$1 $TMP_LD_LIB_PATH"
@@ -1368,25 +1368,14 @@ os.environ["CC"] = "$CXX"
 from Cython.Distutils import build_ext
 from Cython.Build import cythonize
 
-mod_profile = ("ctf.profile", ["ctf/profile.pyx"])
-mod_linalg = ("ctf.linalg", ["ctf/linalg.pyx"])
-mod_multilinear = ("ctf.multilinear", ["ctf/multilinear.pyx"])
-mod_helper = ("ctf.helper", ["ctf/helper.pyx"])
-mod_chelper = ("ctf.chelper", ["ctf/chelper.pyx"])
-mod_tensor = ("ctf.tensor", ["ctf/tensor.pyx"])
-mod_tensor_aux = ("ctf.tensor_aux", ["ctf/tensor_aux.pyx"])
-mod_world = ("ctf.world", ["ctf/world.pyx"])
-mod_partition = ("ctf.partition", ["ctf/partition.pyx"])
-mod_rand = ("ctf.random", ["ctf/random.pyx"])
-mod_term = ("ctf.term", ["ctf/term.pyx"])
-
-mods = [mod_profile, mod_linalg, mod_multilinear, mod_helper, mod_chelper, mod_tensor, mod_tensor_aux, mod_world, mod_partition, mod_rand, mod_term]
-
+mod_core = ["ctf.core", "ctf/core.pyx"]
+mod_rand = ["ctf.random", "ctf/random.pyx"]
+mods = [mod_core, mod_rand]
 ext_mods = []
 for mod in mods:
     ext_mods.append(Extension(
             mod[0],
-            mod[1],
+            [mod[1]],
             language="c++",
             include_dirs=[numpy.get_include(),"$BUILDDIR/include","."]+"$INCLUDES".replace("-I","").split(),
             libraries="-lctf $LD_LIBS".replace('-l','').replace('$BDYNAMIC','').split(),

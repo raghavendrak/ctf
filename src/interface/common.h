@@ -124,6 +124,20 @@ namespace CTF_int {
                int          order_C,
                type const * cidx_C,
                int **       iidx_C);
+  
+  template <typename type=char>
+  void gen_conv_idx(int                   order_A,
+                    type const *          cidx_A,
+                    int **                iidx_A,
+                    int                   nBs,
+                    int const *           order_Bs,
+                    const type * const *  cidx_Bs,
+                    int ***               iidx_Bs);
+  
+  void parse_einsum(const std::string   &einsum, 
+                    char                **cidx_A, 
+                    char                ***cidx_Bs,
+                    int                 nBs); 
 
   int64_t * conv_to_int64(int const * arr, int len);
   

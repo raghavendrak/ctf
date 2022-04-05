@@ -74,7 +74,7 @@ namespace CTF_BLAS {
 
 
   template <typename dtype>
-  void posv(char const *        UPLO ,
+  void posv(char *             UPLO ,
             const int *         N, 
             const int *         NRHS,
             dtype *            A, 
@@ -91,7 +91,7 @@ namespace CTF_BLAS {
 
 #define INST_POSV(dtype,s)                     \
   template <>                                  \
-  void posv<dtype>(char const * a, \
+  void posv<dtype>(char * a, \
             const int *    b, \
             const int *    c, \
             dtype *        d, \
