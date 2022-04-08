@@ -4442,6 +4442,22 @@ namespace CTF_int {
   #endif
     TAU_FSTART(ctr_func);
     /* Invoke the contraction algorithm */
+    // node-awareness
+#ifdef YET_TO_COMPILE
+    //if (C->wrld->ppn != 1){
+    if (1) {
+      std::vector< std::vector<int>* > intra_node_grids = CTF_int::get_all_shapes(72);
+      for (int64_t i = 0; i < intra_node_grids.size(); i++) {
+        std::cout << " ------------------- " << std::endl;
+        for (int64_t j = 0; j < intra_node_grids[i]->size(); j++) {
+            std::cout << "i: " << i << " j: " << j << " : " << intra_node_grids[i]->at(j) << std::endl;
+        }
+        std::cout << " ------------------- " << std::endl;
+      }
+      int num_nodes = A->wrld->get_num_nodes();
+      std::vector< std::vector<int>* > inter_node_grids = CTF_int::get_inter_node_grids(A->topo->lens, num_nodes);
+    }
+#endif
     A->topo->activate();
 
   #ifdef PROFILE_MEMORY
