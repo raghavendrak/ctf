@@ -29,11 +29,8 @@ bool execute_spttn_kernel(int n, int ur, int vr, int wr, double sp_frac, World &
         for a:
           R_ak += buf[a] V_aj
     */
-    int lens[3], lens_uc[2], lens_vc[2], lens_wc[2];
-    vr = wr = ur;
-    lens[0] = n;
-    lens[1] = n;
-    lens[2] = n;
+    int lens_uc[2], lens_vc[2], lens_wc[2];
+    wr = vr = ur;
     lens_uc[0] = ur;
     lens_uc[1] = n;
     lens_vc[0] = vr;
@@ -52,7 +49,7 @@ bool execute_spttn_kernel(int n, int ur, int vr, int wr, double sp_frac, World &
     stime = MPI_Wtime();
     spttn_kernel<dtype>(&T, ops, 3, "ijk,ai,aj->ak");
     etime = MPI_Wtime();
-    if (dw.rank == 0) printf("SpTTN-Cyclops MTTKRP implementation: %1.2lf\n", (etime - stime));
+    if (dw.rank == 0) printf("SpTTN-Cyclops MTTKRP (NOTE that it includes CSF construction time; please see total time to calculate printed above): %1.2lf\n", (etime - stime));
 
     Tensor<dtype> UCyy(2, false, lens_wc, dw);
     Tensor<dtype> * mlist4[3] = {&U, &V, &UCyy};
@@ -60,7 +57,7 @@ bool execute_spttn_kernel(int n, int ur, int vr, int wr, double sp_frac, World &
     stime = MPI_Wtime();
     MTTKRP<dtype>(&T, mlist4, mode, true);
     etime = MPI_Wtime();
-    if (dw.rank == 0) printf("CTF MTTKRP multilinear implementation: %1.2lf\n", (etime - stime));
+    if (dw.rank == 0) printf("CTF MTTKRP multilinear: %1.2lf\n", (etime - stime));
     
     Tensor<dtype> UCxx(2, false, lens_wc, dw);
     stime = MPI_Wtime();

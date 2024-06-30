@@ -151,15 +151,9 @@ namespace CTF_int {
             std::cout << idx[i][j] << " ";
           }
           std::cout << std::endl;
-          int64_t end_j;
-          if (i != 0) {
-            end_j = nnz_level[i] + 1;
-          }
-          else {
-            end_j = nnz_level[i];
-          }
+          int64_t end_j = nnz_level[i] + (i != 0 ? 1 : 0);
           std::cout << "ptr[" << i << "]: ";
-          for (int64_t j = 0; j < nnz_level[i] + 1; j++) {
+          for (int64_t j = 0; j < end_j; j++) {
             std::cout << ptr[i][j] << " ";
           }
           std::cout << std::endl;

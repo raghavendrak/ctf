@@ -233,9 +233,7 @@ namespace CTF_int {
     MPI_Barrier(MPI_COMM_WORLD);
     stime = MPI_Wtime();
     {
-      dtype **arrs = (dtype **)malloc(sizeof(dtype *) * nBs);
-
-      int *phys_phase = (int *)malloc(A->order * sizeof(int));
+      int * phys_phase = (int *)malloc(A->order * sizeof(int));
       for (int i = 0; i < A->order; i++) {
         phys_phase[i] = A->edge_map[i].calc_phys_phase();
       }
@@ -417,10 +415,9 @@ namespace CTF_int {
       active_terms_buffer[i] = i;
     }
 
-    bool transpose = false;
     allocate_buffer<dtype>(len_idx, num_indices, nterms, terms, A->wrld->rank);
     id_inner_ids<dtype>(num_indices, nterms, active_terms_buffer, 0, nterms, terms, A->wrld->rank);
-    process_inner_ids<dtype>(&transpose, rev_idx_map, len_idx, terms, nterms, num_indices, order_A, idx_A, nBs, order_Bs, idx_Bs, A->wrld->rank);
+    process_inner_ids<dtype>(rev_idx_map, len_idx, terms, nterms, num_indices, order_A, idx_A, nBs, order_Bs, idx_Bs, A->wrld->rank);
     prepare_blas_kernels<dtype>(edge_len_Bs, num_indices, len_idx, rev_idx_map, nterms, nBs, terms, order_Bs, idx_Bs, A->wrld->rank);
     
     for (int i = 0; i < nterms; i++) {
@@ -430,10 +427,8 @@ namespace CTF_int {
         int idx = term.index_order[term.index_order_sz-1];
         term.break_rec_idx[idx] = SCALAR;
       }
-      // TODO: else-if not needed
       else if (term.blas_kernel == RECURSIVE_LOOP) {
         int idx = term.index_order[term.index_order_sz-1];
-        //std::cout << "Chosen idx: " << idx << std::endl;
         term.break_rec_idx[idx] = RECURSIVE_LOOP;
       }
       else {
@@ -551,9 +546,10 @@ namespace CTF_int {
                                             int                   level, 
                                             int64_t               pt)
   {
-    int64_t idx_idim = A_tree->get_idx(level, pt);
+    // int64_t idx_idim = A_tree->get_idx(level, pt);
     if (level == 0) {
-      double dt_AB = A_tree->get_data(pt);
+      // print data
+      // double dt_AB = A_tree->get_data(pt);
       return;
     }
     int64_t imax = A_tree->num_children(level, pt);

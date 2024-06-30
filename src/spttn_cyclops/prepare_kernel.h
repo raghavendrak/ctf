@@ -678,8 +678,7 @@ namespace CTF_int {
   } 
 
   template <typename dtype>
-  void process_inner_ids(bool                       transpose,
-                         const int * const *        rev_idx_map,
+  void process_inner_ids(const int * const *        rev_idx_map,
                          const int64_t *            len_idx,
                          contraction_terms<dtype> * terms,
                          int                        nterms,
@@ -773,7 +772,7 @@ namespace CTF_int {
       }
       // check if more than one sparse index requires sparse_loop() infra
       int nsp_idx = 0;
-      int dense_sp_idx;
+      int dense_sp_idx = -1;
       int io = 0;
       // find the last sparse index in this term
       int lsp_idx = -1;
@@ -817,6 +816,7 @@ namespace CTF_int {
       IASSERT(nsp_idx < 2);
       if (nsp_idx == 1) {
         IASSERT(terms[i].dense_sp_loop_in_term != -1);
+        IASSERT(dense_sp_idx != -1);
         terms[terms[i].dense_sp_loop_in_term].dense_sp_loop = (bool *)CTF_int::alloc(sizeof(bool) * len_idx[dense_sp_idx]);
       }
       int num_idx = 0;
@@ -1114,7 +1114,7 @@ namespace CTF_int {
     int iidx;
     int j;
     int k;
-    for (int i = 0; i < sindex_order.size(); i++) {
+    for (size_t i = 0; i < sindex_order.size(); i++) {
       char idx = sindex_order[i];
       for (j = 0; j < order_A; j++) {
         cidx = cidx_A[j];
@@ -1292,10 +1292,10 @@ namespace CTF_int {
     
     // calculate cost for each path
     uint16_t * path_cost = (uint16_t *)alloc(sizeof(uint16_t) * paths.size());
-    for (int i = 0; i < paths.size(); i++) {
-      IASSERT(paths[i].size() == nterms);
+    for (size_t i = 0; i < paths.size(); i++) {
+      IASSERT((int)paths[i].size() == nterms);
       path_cost[i] = 0;
-      for (int j = 0; j < paths[i].size(); j++) {
+      for (size_t j = 0; j < paths[i].size(); j++) {
         int8_t flops;
         uint16_t cinds;
         cp->contract(paths[i][j].ta, paths[i][j].tb, cinds, flops);
@@ -1306,7 +1306,7 @@ namespace CTF_int {
 
     bool sp_buffer = false;
     while (niloops == -1) {    
-      for (int i = 0; i < paths.size(); i++) {
+      for (size_t i = 0; i < paths.size(); i++) {
         // choose a contraction path that can be implemented with the given constraints
         if (path_cost[i] != pick_cp_cost) continue;
         int thres_buf_sz = 2;
@@ -1318,7 +1318,7 @@ namespace CTF_int {
         if (lio->icache[S][sT][eT].computed == false) {
           if (rank == 0) {
             std::cout << "\nCould not find an optimal loop nest for the below path" << std::endl;
-            for (int j = 0; j < paths[i].size(); j++) {
+            for (size_t j = 0; j < paths[i].size(); j++) {
               paths[i][j].print();
             }
           }
@@ -1362,7 +1362,7 @@ namespace CTF_int {
       // print tensors
       // term_idx<dtype>(cidx_A, cidx_Bs, sterms, nterms, terms, order_A, idx_A, nBs, order_Bs, idx_Bs); 
       int8_t tflops = 0;
-      for (int j = 0; j < paths[path].size(); j++) {
+      for (size_t j = 0; j < paths[path].size(); j++) {
         if (rank == 0) {
           paths[path][j].print();
         }
@@ -1375,13 +1375,13 @@ namespace CTF_int {
         std::cout << "total loop depth: " << (int)tflops << std::endl;
         for (int i = 0; i < nterms; i++) {
           std::cout << "term id " << i << ": ";
-          for (int k = 0; k < optimal_io[i].size(); k++) {
+          for (size_t k = 0; k < optimal_io[i].size(); k++) {
             std::cout << optimal_io[i][k] << " ";
           }
           std::cout << std::endl;
         }
       }
-      IASSERT(paths[path].size() == nterms);
+      IASSERT((int)paths[path].size() == nterms);
       for (int i = 0; i < nterms; i++) {
         uint16_t ta = paths[path][i].ta;
         uint16_t tb = paths[path][i].tb;
@@ -1407,7 +1407,6 @@ namespace CTF_int {
         // main tensor indices
         if (ta == 1 || tb == 1) {
           for (int j = 0; j < order_A; j++) {
-            char cidx = cidx_A[j];
             int iidx = idx_A[j];
             terms[i].in_term_idx[iidx] = true;
           }
@@ -1416,7 +1415,6 @@ namespace CTF_int {
         for (int j = 0; j < nBs; j++) {
           if (terms[i].Bs_in_term[j]) {
             for (int k = 0; k < order_Bs[j]; k++) {
-              char cidx = cidx_Bs[j][k];
               int iidx = idx_Bs[j][k];
               terms[i].in_term_idx[iidx] = true;
             }
@@ -1441,7 +1439,6 @@ namespace CTF_int {
         if (i == (nterms-1)) {
           IASSERT(terms[i].out_buf_id == -1);
           for (int j = 0; j < order_Bs[nBs-1]; j++) {
-            char cidx = cidx_Bs[nBs-1][j];
             int iidx = idx_Bs[nBs-1][j];
             terms[i].in_term_idx[iidx] = true;
             terms[i].in_op_idx[iidx] = true;
@@ -1450,7 +1447,7 @@ namespace CTF_int {
       }
       for (int i = 0; i < nterms; i++) {
         if (rank == 0) std::cout << "term id " << i << ": ";
-        for (int k = 0; k < optimal_io[i].size(); k++) {
+        for (size_t k = 0; k < optimal_io[i].size(); k++) {
           int iidx = log2(optimal_io[i][k]);
           terms[i].index_order[k] = iidx;
           if (rank == 0) std::cout << iidx << " ";

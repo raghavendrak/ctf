@@ -74,7 +74,6 @@ namespace CTF_int {
           uint16_t & cinds, 
           int8_t & flops)
       {
-        uint16_t nt = ta | tb;
         uint16_t rinds = 0;
         assert(cp_cache[ta].inds != 0);
         assert(cp_cache[tb].inds != 0);
@@ -246,7 +245,7 @@ namespace CTF_int {
           paths.push_back(path);
           return paths;
         }
-        for (int i = 0; i < cp_cache[tid].orders.size(); i++) {
+        for (size_t i = 0; i < cp_cache[tid].orders.size(); i++) {
           CTerm term;
           term.ta = cp_cache[tid].orders[i].first;
           term.tb = cp_cache[tid].orders[i].second;
@@ -256,14 +255,14 @@ namespace CTF_int {
           // if it is made up of only one tensor
           if (numones[cp_cache[tid].orders[i].first] == 1) {
             std::vector<std::vector<CTerm> > rpaths = enumerate_all_paths(cp_cache[tid].orders[i].second);
-            for (int r = 0; r < rpaths.size(); r++) {
+            for (size_t r = 0; r < rpaths.size(); r++) {
               rpaths[r].push_back(term);
               paths.push_back(rpaths[r]);
             }
           }
           else if (numones[cp_cache[tid].orders[i].second] == 1) {
             std::vector<std::vector<CTerm> > lpaths = enumerate_all_paths(cp_cache[tid].orders[i].first);
-            for (int l = 0; l < lpaths.size(); l++) {
+            for (size_t l = 0; l < lpaths.size(); l++) {
               lpaths[l].push_back(term);
               paths.push_back(lpaths[l]);
             }
@@ -271,8 +270,8 @@ namespace CTF_int {
           else {
             std::vector<std::vector<CTerm> > lpaths = enumerate_all_paths(cp_cache[tid].orders[i].first);
             std::vector<std::vector<CTerm> > rpaths = enumerate_all_paths(cp_cache[tid].orders[i].second);
-            for (int l = 0; l < lpaths.size(); l++) {
-              for (int r = 0; r < rpaths.size(); r++) {
+            for (size_t l = 0; l < lpaths.size(); l++) {
+              for (size_t r = 0; r < rpaths.size(); r++) {
                 path = lpaths[l];
                 path.insert(path.end(), rpaths[r].begin(), rpaths[r].end());
                 path.push_back(term);
@@ -302,7 +301,7 @@ namespace CTF_int {
       uint8_t nterms_interval = eT - sT + 1;
       for (int i = 0; i < nterms_interval; i++) {
         std::cout << "icache[" << S << "][" << (int)sT+i << "]: ";
-        for (int k = 0; k < inds_order[0][i].size(); k++) {
+        for (size_t k = 0; k < inds_order[0][i].size(); k++) {
           std::cout << inds_order[0][i][k] << " ";
         }
         std::cout << std::endl;
@@ -329,7 +328,6 @@ namespace CTF_int {
     {
       uint8_t nterms_interval = eT - sT + 1;
       for (int i = 0; i < nterms_interval; i++) {
-        uint16_t rem_inds = term_inds[sT+i] & ~S;
         for (int j = 0; j < 2; j++) {
           inds_order[j][i].clear();
         }
@@ -346,7 +344,7 @@ namespace CTF_int {
       uint8_t nterms_interval = eT - sT + 1;
       for (int i = 0; i < nterms_interval; i++) {
         for (int j = 0; j < 2; j++) {
-          for (int k = 0; k < inds_order[j][i].size(); k++) {
+          for (size_t k = 0; k < inds_order[j][i].size(); k++) {
             std::cout << "S: " << std::bitset<8>(S) << " inds_order: " << inds_order[j][i][k] << std::endl;
             assert(!(S & (1 << (int)log2(inds_order[j][i][k]))));
           }
@@ -396,11 +394,11 @@ namespace CTF_int {
           }
         }
         // populate gc[] and term_inds[]
-        IASSERT(nterms == path.size());
-        int j = 0;
+        IASSERT(nterms == (int)path.size());
+        size_t j = 0;
         for (; j < (path.size()-1); j++) {
           uint16_t generator = path[j].tab;
-          int k = j+1;
+          size_t k = j+1;
           for (; k < path.size(); k++) {
             if (!(path[k].ta & generator) || !(path[k].tb & generator)) {
               gc[j] = k;
@@ -489,11 +487,11 @@ namespace CTF_int {
           return;
         }
 
-        if (eT-sT+1 == 2) {
-          // check if the first two terms have the same indices remaining
-          uint16_t rem_inds = term_inds[sT] & ~S;
-          //assert((term_inds[sT+1] & ~S) != rem_inds);
-        }
+        // check if the first two terms have the same indices remaining
+        // if (eT-sT+1 == 2) {
+        //  uint16_t rem_inds = term_inds[sT] & ~S;
+        //  assert((term_inds[sT+1] & ~S) != rem_inds);
+        // }
 
         // initialize cache for this interval and S
         icache[S][sT][eT].init_element_in_icache(S, sT, eT, term_inds, numones);
@@ -552,7 +550,7 @@ namespace CTF_int {
           // find dense indices after all sparse indices are removed and populate independent dense loops
           for (int j = 0; j < 2; j++) {
             int dense_inds = 0;
-            for (int i = 0; i < icache[S][sT][eT].inds_order[j][0].size(); i++) {
+            for (size_t i = 0; i < icache[S][sT][eT].inds_order[j][0].size(); i++) {
               if (numones[icache[S][sT][eT].inds_order[j][0][i] & sp_inds] == 0) {
                 dense_inds++;
               }
@@ -643,7 +641,6 @@ namespace CTF_int {
               int8_t max_buf_sz_child = icache[(S|q)][sT][s].max_buf_sz[0];
               int8_t max_buf_sz_LR = 0; // no cost since no split
               max_buf_sz = std::max(max_buf_sz_LR, max_buf_sz_child);
-              int which_R = 0;
               int8_t niloops_LR = icache[(S|q)][sT][s].niloops[0];
               if (niloops_LR > niloopss[0]) {
                 if (Ts[0][0].size() > 0) {
@@ -740,7 +737,7 @@ namespace CTF_int {
               if (!(q & sp_inds)) {
                 // check if there are no sparse indices after q?
                 bool sp_inds_after_q = false;
-                for (int ii = 0; ii < icache[(S|q)][sT][s].inds_order[0][0].size(); ii++) {
+                for (size_t ii = 0; ii < icache[(S|q)][sT][s].inds_order[0][0].size(); ii++) {
                   if (icache[(S|q)][sT][s].inds_order[0][0][ii] & sp_inds) {
                     // there is a sparse index after q
                     sp_inds_after_q = true;

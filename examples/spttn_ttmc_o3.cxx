@@ -21,13 +21,9 @@ bool execute_spttn_kernel(int n, int ur, int vr, int wr, double sp_frac, World &
   {
     // TTMc: mode-(n-1)
     // order-3
-    int lens[3], lens_uc[2], lens_vc[2], lens_wc[3];
+    int lens_uc[2], lens_vc[2], lens_wc[3];
     int n1, n2, n3;
-    vr = wr = ur;
     n1 = n2 = n3 = n;
-    lens[0] = n1;
-    lens[1] = n2;
-    lens[2] = n3;
     lens_uc[0] = ur;
     lens_uc[1] = n1;
     lens_vc[0] = vr;
@@ -48,7 +44,7 @@ bool execute_spttn_kernel(int n, int ur, int vr, int wr, double sp_frac, World &
     stime = MPI_Wtime();
     spttn_kernel<dtype>(&T, ops, 3, "ijk,ri,sj->rsk");
     etime = MPI_Wtime();
-    if (dw.rank == 0) printf("SPTTN-Cyclops TTMc: %1.2lf\n", (etime - stime));
+    if (dw.rank == 0) printf("SPTTN-Cyclops TTMc (NOTE that it includes CSF construction time; please see total time to calculate printed above): %1.2lf\n", (etime - stime));
     /*
     mode-2
     for k:

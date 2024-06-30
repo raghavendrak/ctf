@@ -156,7 +156,6 @@ namespace CTF_int{
                     int *                       active_terms_ind,
                     int                         num_active_terms,
                     char **                     tbuffer,
-                    const int64_t * const *     lda_tbuffers,
                     int                         tree_level,
                     int                         level,
                     contraction_terms<double> & term);
@@ -184,7 +183,6 @@ namespace CTF_int{
                     int *                       active_terms_ind,
                     int                         num_active_terms,
                     char **                     tbuffer,
-                    const int64_t * const *     lda_tbuffers,
                     int                         tree_level,
                     int                         level);
 
