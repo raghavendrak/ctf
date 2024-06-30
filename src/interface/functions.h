@@ -4,6 +4,7 @@
 #include "../scaling/scaling.h"
 #include "../summation/summation.h"
 #include "../contraction/contraction.h"
+#include "../spttn_cyclops/prepare_kernel.h"
 
 
 namespace CTF {

@@ -58,6 +58,12 @@ namespace CTF {
   */
   template<typename dtype>
   void Solve_Factor(Tensor<dtype> * T, Tensor<dtype> ** mat_list, Tensor<dtype> * RHS, int mode, bool aux_mode_first);
+
+  template<typename dtype>
+  void spttn_kernel(Tensor<dtype> * A, Tensor<dtype> ** Bs, int nBs, const char * einsum_expr, std::string * terms, int nterms, std::string * index_order);
+
+  template<typename dtype>
+  void spttn_kernel(Tensor<dtype> * A, Tensor<dtype> ** B, int nBs, const char * einsum_expr);
 }
 
 #endif

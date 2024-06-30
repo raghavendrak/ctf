@@ -14,6 +14,7 @@
 #include <iostream>
 #include <limits.h>
 #include <random>
+#include <cstring>
 
 #include "../shared/model.h"
 
@@ -370,5 +371,20 @@ namespace CTF_int {
     CTF_int::parallel_prefix<dtype>(n, 1, B);
   }
 
+  // spttn-cyclops
+  void popcount_init(uint8_t * numones);
+  void parse_einsum(const std::string   &einsum, 
+                    char                **cidx_A, 
+                    char                ***cidx_Bs,
+                    int                 nBs); 
+
+  template <typename type=char>
+  void spttn_conv_idx(int                   order_A,
+                      type const *          cidx_A,
+                      int **                iidx_A,
+                      int                   nBs,
+                      int const *           order_Bs,
+                      const type * const *  cidx_Bs,
+                      int ***               iidx_Bs);
 }
 #endif

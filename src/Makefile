@@ -1,6 +1,6 @@
 ctf: subdirs
 
-SUBDIRS = interface shared tensor symmetry mapping redistribution scaling summation contraction sparse_formats
+SUBDIRS = interface shared tensor symmetry mapping redistribution scaling summation contraction sparse_formats spttn_cyclops
      
 .PHONY: subdirs $(SUBDIRS)
      

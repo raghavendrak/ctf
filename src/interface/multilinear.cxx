@@ -2,6 +2,7 @@
 #include "timer.h"
 #include "../mapping/mapping.h"
 #include "../shared/blas_symbs.h"
+#include "../spttn_cyclops/prepare_kernel.h"
 
 namespace CTF {
   template<typename dtype>
@@ -1001,4 +1002,26 @@ namespace CTF {
       T->sr->pair_dealloc((char*)pairs);
     t_solve_factor.stop();
   }
+
+  template<typename dtype>
+  void spttn_kernel(Tensor<dtype> * A, Tensor<dtype> ** Bs, int nBs, const char * einsum_expr, std::string * terms, int nterms, std::string * index_order)
+  {
+    IASSERT(terms != nullptr && index_order != nullptr);
+    char * idx_A;
+    char ** idx_Bs;
+    CTF_int::parse_einsum(einsum_expr, &idx_A, &idx_Bs, nBs);
+    CTF_int::spttn_contraction<dtype> ctr = CTF_int::spttn_contraction<dtype>(A, idx_A, (CTF_int::tensor **)Bs, nBs, idx_Bs, terms, nterms, index_order);
+    ctr.execute();
+  }
+
+  template<typename dtype>
+  void spttn_kernel(Tensor<dtype> *A, Tensor<dtype> **Bs, int nBs, const char *einsum_expr)
+  {
+    char *idx_A;
+    char **idx_Bs;
+    CTF_int::parse_einsum(einsum_expr, &idx_A, &idx_Bs, nBs);
+    CTF_int::spttn_contraction<dtype> ctr = CTF_int::spttn_contraction<dtype>(A, idx_A, (CTF_int::tensor **)Bs, nBs, idx_Bs);
+    ctr.execute();
+  }
+
 }

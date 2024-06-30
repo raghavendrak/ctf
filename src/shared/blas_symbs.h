@@ -31,6 +31,7 @@
 #define SCOPY scopy_
 #define DCOPY dcopy_
 #define ZCOPY zcopy_
+#define DGER dger_
 #else
 #define DDOT ddot
 #define SGEMM sgemm
@@ -60,6 +61,7 @@
 #define SCOPY scopy
 #define DCOPY dcopy
 #define ZCOPY zcopy
+#define DGER dger
 #endif
 
 
@@ -339,6 +341,16 @@ namespace CTF_BLAS {
              std::complex<double> * dX,
              const int *            incX);
 
+  extern "C"
+  void DGER(const int *          m,
+            const int *          n,
+            const double *       ALPHA,
+            const double *       dX,
+            const int *          incX,
+            const double *       dY,
+            const int *          incY,
+            double *             dA,
+            const int *          LDA);
 
 #ifdef USE_BATCH_GEMM
   extern "C"

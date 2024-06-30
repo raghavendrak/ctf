@@ -140,6 +140,19 @@ namespace CTF_int {
   #define CTF_FLOPS_ADD(n) 
   #endif
 
+  #define MAKE_LOOP_2(i, irange)   for(int64_t i = 0; i < irange; ++i)
+  #define MAKE_LOOP_4(i, irange, ...)  MAKE_LOOP_2(i, irange) MAKE_LOOP_2(__VA_ARGS__)
+  #define MAKE_LOOP_6(i, irange, ...)  MAKE_LOOP_2(i, irange) MAKE_LOOP_4(__VA_ARGS__)
+  #define MAKE_LOOP_8(i, irange, ...)  MAKE_LOOP_2(i, irange) MAKE_LOOP_6(__VA_ARGS__)
+  #define MAKE_LOOP_N(_8,_7,_6,_5,_4,_3,_2,_1,N,...) MAKE_LOOP_##N
+  #define MAKE_LOOP(...)  MAKE_LOOP_N(__VA_ARGS__,8,7,6,5,4,3,2,1)(__VA_ARGS__)
+
+  #define GENERATE_NESTED_LOOP(N, _IRANGE, BODY) switch(N){\
+  case 1: MAKE_LOOP(_ii, _IRANGE[0]){ BODY } break; \
+  case 2: MAKE_LOOP(_ii, _IRANGE[0], _jj, _IRANGE[1]) { BODY } break; \
+  case 3: MAKE_LOOP(_ii, _IRANGE[0], _jj, _IRANGE[1], _kk, _IRANGE[2]) { BODY } \
+  }
+
   //doesn't work with OpenMPI
   //volatile static int64_t mpi_int64_t = MPI_LONG_LONG_INT;
   #ifdef _SC_PHYS_PAGES
