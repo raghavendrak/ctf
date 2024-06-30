@@ -8,6 +8,7 @@ cdef extern from "ctf.hpp" namespace "CTF":
     cdef void TTTP_ "CTF::TTTP"[dtype](Tensor[dtype] * T, int num_ops, int * modes, Tensor[dtype] ** mat_list, bool aux_mode_first)
     cdef void MTTKRP_ "CTF::MTTKRP"[dtype](Tensor[dtype] * T, Tensor[dtype] ** mat_list, int mode, bool aux_mode_first)
     cdef void Solve_Factor_ "CTF::Solve_Factor"[dtype](Tensor[dtype] * T, Tensor[dtype] ** mat_list,Tensor[dtype] * RHS, int mode, bool aux_mode_first)
+    cdef void spttn_kernel_ "CTF::spttn_kernel"[dtype](Tensor[dtype] * T, Tensor[dtype] ** mat_list,int nBs, char * einsum_expr)
 def TTTP(tensor A, mat_list):
     """
     TTTP(A, mat_list)
@@ -184,4 +185,16 @@ def Solve_Factor(tensor A, mat_list, tensor R, mode):
     free(tsrs)
     t_solve_factor.stop()
 
-
+def spttn_kernel(tensor A, tsrs_list, nBs, einsum_expr):
+    tsrs = <Tensor[double]**>malloc(len(tsrs_list)*sizeof(ctensor*))
+    imode = 0
+    cdef tensor t
+    for i in range(len(tsrs_list)):
+        t = tsrs_list[i]
+        tsrs[i] = <Tensor[double]*>t.dt
+    B = tensor(copy=A)
+    if A.dtype == np.float64:
+        spttn_kernel_[double](<Tensor[double]*>B.dt,tsrs,nBs,<char *>einsum_expr)
+    else:
+        raise ValueError('CTF PYTHON ERROR: SpTTN-Cyclops does not support this dtype')
+    free(tsrs)
