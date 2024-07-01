@@ -92,8 +92,8 @@ namespace CTF_int{
         tbuffer_sz = -1;
         break_rec_idx = (int *)CTF_int::alloc(sizeof(int) * (num_indices+1));
 
-        index_order = (int *)CTF_int::alloc(sizeof(int) * num_indices);
-        std::fill_n(index_order, num_indices, (num_indices));
+        index_order = (int *)CTF_int::alloc(sizeof(int) * (num_indices+1));
+        std::fill_n(index_order, (num_indices+1), -1);
         rev_index_order = (int *)CTF_int::alloc(sizeof(int) * num_indices);
         std::fill_n(rev_index_order, num_indices, -1);
         index_order_sz = -1;
@@ -148,7 +148,6 @@ namespace CTF_int{
                     const int64_t *             len_idx,
                     bivar_function const *      func,
                     const int * const *         rev_idx_map,
-                    int                         num_indices,
                     int64_t                     tree_pt_st,
                     int64_t                     tree_pt_en,
                     contraction_terms<double> * terms,
@@ -175,7 +174,6 @@ namespace CTF_int{
                     const int64_t *             len_idx,
                     bivar_function const *      func,
                     const int * const *         rev_idx_map,
-                    int                         num_indices,
                     int64_t                     tree_pt_st,
                     int64_t                     tree_pt_en,
                     contraction_terms<double> * terms,

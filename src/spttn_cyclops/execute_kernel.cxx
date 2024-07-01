@@ -17,7 +17,7 @@
 #include "../shared/mkl_symbs.h"
 #endif
 
-namespace CTF_int{
+namespace CTF_int {
   
   template class CSF<double>;
   template class CSF<int>;
@@ -38,7 +38,6 @@ namespace CTF_int{
                         const int64_t *             len_idx,
                         bivar_function const *      func,
                         const int * const *         rev_idx_map,
-                        int                         num_indices,
                         int64_t                     tree_pt_st,
                         int64_t                     tree_pt_en,
                         contraction_terms<double> * terms,
@@ -48,10 +47,10 @@ namespace CTF_int{
                         char **                     tbuffer,
                         int                         tree_level)
   {
-    int iidx = (num_indices - 1) - level;
+    int iidx = level;
     int tid = active_terms_ind[0];
     int idx = terms[tid].index_order[iidx];
-    if(idx == num_indices) {
+    if(idx == -1) {
       contraction_terms<double> & termx = terms[active_terms_ind[0]]; 
       // IASSERT(termx.blas_kernel == RECURSIVE_LOOP);
       double * dX = (double *)Bs[termx.X]; 
@@ -84,10 +83,10 @@ namespace CTF_int{
           }
         }
         if (n_act_buf == 1 && terms[active_terms_buffer[0]].blas_kernel != RECURSIVE_LOOP && terms[active_terms_buffer[0]].blas_idx == idx) {
-          call_blas(alpha, A_tree, sr_A, order_A, idx_A, nBs, Bs, sr_Bs, order_Bs, len_Bs, lda_Bs, idx_Bs, len_idx, func, rev_idx_map, num_indices, tree_pt_st, tree_pt_en, terms, nterms, active_terms_buffer, n_act_buf, tbuffer, tree_level, level, terms[active_terms_buffer[0]]);
+          call_blas(alpha, A_tree, sr_A, order_A, idx_A, nBs, Bs, sr_Bs, order_Bs, len_Bs, lda_Bs, idx_Bs, len_idx, func, rev_idx_map, tree_pt_st, tree_pt_en, terms, nterms, active_terms_buffer, n_act_buf, tbuffer, tree_level, level, terms[active_terms_buffer[0]]);
         }
         else {
-          call_ctrloop(alpha, A_tree, sr_A, order_A, idx_A, nBs, Bs, sr_Bs, order_Bs, len_Bs, lda_Bs, idx_Bs, len_idx, func, rev_idx_map, num_indices, tree_pt_st, tree_pt_en, terms, nterms, active_terms_buffer, n_act_buf, tbuffer, tree_level, level);
+          call_ctrloop(alpha, A_tree, sr_A, order_A, idx_A, nBs, Bs, sr_Bs, order_Bs, len_Bs, lda_Bs, idx_Bs, len_idx, func, rev_idx_map, tree_pt_st, tree_pt_en, terms, nterms, active_terms_buffer, n_act_buf, tbuffer, tree_level, level);
         }
         n_act_buf = 0;
         idx = term.index_order[iidx];
@@ -95,11 +94,11 @@ namespace CTF_int{
       }
     }
     if (n_act_buf == 1 && terms[active_terms_buffer[0]].blas_kernel != RECURSIVE_LOOP && terms[active_terms_buffer[0]].blas_idx == idx) {
-      call_blas(alpha, A_tree, sr_A, order_A, idx_A, nBs, Bs, sr_Bs, order_Bs, len_Bs, lda_Bs, idx_Bs, len_idx, func, rev_idx_map, num_indices, tree_pt_st, tree_pt_en, terms, nterms, active_terms_buffer, n_act_buf, tbuffer, tree_level, level, terms[active_terms_buffer[0]]);
+      call_blas(alpha, A_tree, sr_A, order_A, idx_A, nBs, Bs, sr_Bs, order_Bs, len_Bs, lda_Bs, idx_Bs, len_idx, func, rev_idx_map, tree_pt_st, tree_pt_en, terms, nterms, active_terms_buffer, n_act_buf, tbuffer, tree_level, level, terms[active_terms_buffer[0]]);
     }
     else {
-      // TODO: handle case where n_act_buf > 1 and still term1.index_order[iidx] == num_indices
-      call_ctrloop(alpha, A_tree, sr_A, order_A, idx_A, nBs, Bs, sr_Bs, order_Bs, len_Bs, lda_Bs, idx_Bs, len_idx, func, rev_idx_map, num_indices, tree_pt_st, tree_pt_en, terms, nterms, active_terms_buffer, n_act_buf, tbuffer, tree_level, level);
+      // TODO: handle case where n_act_buf > 1 and still term1.index_order[iidx] == -1 
+      call_ctrloop(alpha, A_tree, sr_A, order_A, idx_A, nBs, Bs, sr_Bs, order_Bs, len_Bs, lda_Bs, idx_Bs, len_idx, func, rev_idx_map, tree_pt_st, tree_pt_en, terms, nterms, active_terms_buffer, n_act_buf, tbuffer, tree_level, level);
     }
   }
   
@@ -119,7 +118,6 @@ namespace CTF_int{
                                  const int64_t *             len_idx,
                                  bivar_function const *      func,
                                  const int * const *         rev_idx_map,
-                                 int                         num_indices,
                                  int64_t                     tree_pt_st,
                                  int64_t                     tree_pt_en,
                                  contraction_terms<double> * terms,
@@ -146,7 +144,6 @@ namespace CTF_int{
                     const int64_t *             len_idx,
                     bivar_function const *      func,
                     const int * const *         rev_idx_map,
-                    int                         num_indices,
                     int64_t                     tree_pt_st,
                     int64_t                     tree_pt_en,
                     contraction_terms<double> * terms,
@@ -158,7 +155,7 @@ namespace CTF_int{
                     int                         level,
                     contraction_terms<double> & term)
   {
-    int iidx = (num_indices - 1) - level;
+    int iidx = level;
     int idx = term.index_order[iidx];
     switch (term.break_rec_idx[idx]) {
       case SPARSE_xAXPY: {
@@ -288,19 +285,7 @@ namespace CTF_int{
       }
       break;
       default: {
-        // IASSERT(term.blas_kernel == RECURSIVE_LOOP);
-        // IASSERT(term.break_rec_idx[idx] == RECURSIVE_LOOP);
-        double * dX = (double *)Bs[term.X]; 
-        double * dY = (double *)Bs[term.Y];
-        if (term.ALPHA == -1) {
-          // IASSERT(term.Y != (nBs-1));
-          double alpha = A_tree->dt[tree_pt_st];
-          *dY += alpha * *dX;
-        }
-        else {
-          double * alpha = (double *)Bs[(int)term.ALPHA]; 
-          *dY += *alpha * *dX;
-        }
+        IASSERT(0);
       }
       break;
     }
@@ -321,7 +306,6 @@ namespace CTF_int{
                     const int64_t *             len_idx,
                     bivar_function const *      func,
                     const int * const *         rev_idx_map,
-                    int                         num_indices,
                     int64_t                     tree_pt_st,
                     int64_t                     tree_pt_en,
                     contraction_terms<double> * terms,
@@ -332,7 +316,7 @@ namespace CTF_int{
                     int                         tree_level,
                     int                         level)
   {
-    int iidx = (num_indices - 1) - level;
+    int iidx = level;
     int tid = active_terms_ind[0];
     int idx = terms[tid].index_order[iidx];
     char *tBs[nBs+nterms];
@@ -381,7 +365,7 @@ namespace CTF_int{
             for (int j = 0; j < szb; j++) {
               *active_tBs[j] = (char *)((double *)active_Bs[j] + active_ldas[j] * i);
             }
-            SWITCH_ORD_CALL(spA_dnBs_ctrloop, level-1, alpha, A_tree, sr_A, order_A, idx_A, nBs, tBs, sr_Bs, order_Bs, len_Bs, lda_Bs, idx_Bs, len_idx, func, rev_idx_map, num_indices, tree_pt_st, tree_pt_en, terms, nterms, active_terms_ind, num_active_terms, ttbuf, tree_level);
+            SWITCH_ORD_CALL(spA_dnBs_ctrloop, level+1, alpha, A_tree, sr_A, order_A, idx_A, nBs, tBs, sr_Bs, order_Bs, len_Bs, lda_Bs, idx_Bs, len_idx, func, rev_idx_map, tree_pt_st, tree_pt_en, terms, nterms, active_terms_ind, num_active_terms, ttbuf, tree_level);
           }
         }
       }
@@ -391,7 +375,7 @@ namespace CTF_int{
           for (int j = 0; j < szb; j++) {
             *active_tBs[j] = (char *)((double *)active_Bs[j] + active_ldas[j] * i);
           }
-          SWITCH_ORD_CALL(spA_dnBs_ctrloop, level-1, alpha, A_tree, sr_A, order_A, idx_A, nBs, tBs, sr_Bs, order_Bs, len_Bs, lda_Bs, idx_Bs, len_idx, func, rev_idx_map, num_indices, tree_pt_st, tree_pt_en, terms, nterms, active_terms_ind, num_active_terms, ttbuf, tree_level);
+          SWITCH_ORD_CALL(spA_dnBs_ctrloop, level+1, alpha, A_tree, sr_A, order_A, idx_A, nBs, tBs, sr_Bs, order_Bs, len_Bs, lda_Bs, idx_Bs, len_idx, func, rev_idx_map, tree_pt_st, tree_pt_en, terms, nterms, active_terms_ind, num_active_terms, ttbuf, tree_level);
         }
       } 
     }
@@ -405,10 +389,10 @@ namespace CTF_int{
         if (tree_level != 0) {
           int64_t imax = A_tree->num_children(tree_level, i);
           int64_t child_pt = A_tree->get_child_ptr(tree_level, i);
-          SWITCH_ORD_CALL(spA_dnBs_ctrloop, level-1, alpha, A_tree, sr_A, order_A, idx_A, nBs, tBs, sr_Bs, order_Bs, len_Bs, lda_Bs, idx_Bs, len_idx, func, rev_idx_map, num_indices, child_pt, (child_pt+imax), terms, nterms, active_terms_ind, num_active_terms, ttbuf, tree_level-1);
+          SWITCH_ORD_CALL(spA_dnBs_ctrloop, level+1, alpha, A_tree, sr_A, order_A, idx_A, nBs, tBs, sr_Bs, order_Bs, len_Bs, lda_Bs, idx_Bs, len_idx, func, rev_idx_map, child_pt, (child_pt+imax), terms, nterms, active_terms_ind, num_active_terms, ttbuf, tree_level-1);
         }
         else {
-          SWITCH_ORD_CALL(spA_dnBs_ctrloop, level-1, alpha, A_tree, sr_A, order_A, idx_A, nBs, tBs, sr_Bs, order_Bs, len_Bs, lda_Bs, idx_Bs, len_idx, func, rev_idx_map, num_indices, i, -1, terms, nterms, active_terms_ind, num_active_terms, ttbuf, tree_level);
+          SWITCH_ORD_CALL(spA_dnBs_ctrloop, level+1, alpha, A_tree, sr_A, order_A, idx_A, nBs, tBs, sr_Bs, order_Bs, len_Bs, lda_Bs, idx_Bs, len_idx, func, rev_idx_map, i, -1, terms, nterms, active_terms_ind, num_active_terms, ttbuf, tree_level);
         }
       }
     }
@@ -468,7 +452,7 @@ namespace CTF_int{
       }
     }
 
-    int level = num_indices - 1;
+    int level = 0;
     int active_terms_buffer[nterms];
     // TODO: can use std::iota
     for (int i = 0; i < nterms; i++) {
@@ -476,7 +460,7 @@ namespace CTF_int{
     }
     int64_t imax = A_tree->nnz_level[order_A-1];
 
-    SWITCH_ORD_CALL(spA_dnBs_ctrloop, level, alpha, A_tree, sr_A, order_A, idx_A, nBs, Bs, sr_Bs, order_Bs, len_Bs, lda_Bs, idx_Bs, len_idx, func, rev_idx_map, num_indices, 0, imax, terms, nterms, active_terms_buffer, nterms, ttbuf, order_A-1); 
+    SWITCH_ORD_CALL(spA_dnBs_ctrloop, level, alpha, A_tree, sr_A, order_A, idx_A, nBs, Bs, sr_Bs, order_Bs, len_Bs, lda_Bs, idx_Bs, len_idx, func, rev_idx_map, 0, imax, terms, nterms, active_terms_buffer, nterms, ttbuf, order_A-1); 
     for (int i = 0; i < nBs; i++) {
       cdealloc(lda_Bs[i]);
     }

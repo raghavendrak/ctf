@@ -958,7 +958,7 @@ namespace CTF_int {
       int tbuf_size = 1;
       for (; inp < num_indices; inp++) {
         int idx = terms[i].index_order[inp];
-        if (idx == (num_indices)) break;
+        if (idx == -1) break;
         for (int k = op; k < num_indices; k++) {
           if (terms[j].index_order[k] == idx) {
             terms[i].idx_tbuffer[tbo] = idx;
@@ -1032,7 +1032,7 @@ namespace CTF_int {
   {
     if (num_active_terms == 1) {
       // inner indices
-      if (terms[active_terms_ind[0]].index_order[iidx] == (num_indices)) {
+      if (terms[active_terms_ind[0]].index_order[iidx] == -1) {
         // the term is a leaf
         terms[active_terms_ind[0]].inner_idx = -1; 
         terms[active_terms_ind[0]].inner_rev_idx = -1;
@@ -1046,11 +1046,11 @@ namespace CTF_int {
     iidx++;
     int idx = terms[active_terms_ind[0]].index_order[iidx];
     int k = 1;
-    while (idx == (num_indices)) {
+    while (idx == -1) {
       idx = terms[active_terms_ind[k++]].index_order[iidx];
       if (k == num_active_terms) break;
     }
-    if (idx == (num_indices)) {
+    if (idx == -1) {
       // the terms in the branch share an index (multiple terms as leaves)
       for (int i = 0; i < num_active_terms; i++) {
         terms[active_terms_ind[i]].inner_idx = -1;
@@ -1450,15 +1450,19 @@ namespace CTF_int {
         for (size_t k = 0; k < optimal_io[i].size(); k++) {
           int iidx = log2(optimal_io[i][k]);
           terms[i].index_order[k] = iidx;
-          if (rank == 0) std::cout << iidx << " ";
           terms[i].rev_index_order[iidx] = k;
         }
-        if (rank == 0) std::cout << std::endl;
         terms[i].index_order_sz = optimal_io[i].size();
-        std::cout << "terms[" << i << "].index_order_sz = " << terms[i].index_order_sz << std::endl;
+        if (rank == 0) {
+          std::cout << "terms[" << i << "].index_order_sz = " << terms[i].index_order_sz << std::endl;
+          for (int k = 0; k < num_indices; k++) {
+            std::cout << terms[i].index_order[k] << " ";
+          }
+          std::cout << std::endl;
+        }
         if (terms[i].index_order_sz < num_indices) {
           // index_order is filled with num_indices in contraction_terms constructor
-          IASSERT(terms[i].index_order[terms[i].index_order_sz] == (num_indices));
+          IASSERT(terms[i].index_order[terms[i].index_order_sz] == -1);
         }
       }
       if (rank == 0) {
