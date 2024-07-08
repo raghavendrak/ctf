@@ -57,7 +57,7 @@ namespace CTF_int {
       double * dY = (double *)Bs[termx.Y];
       if (termx.ALPHA == -1) {
         // IASSERT(termx.Y != (nBs-1));
-        double alpha = A_tree->dt[tree_pt_st];
+        double alpha = A_tree->dt[tree_pt_st].d;
         *dY += alpha * *dX;
       }
       else {
@@ -161,7 +161,7 @@ namespace CTF_int {
       case SPARSE_xAXPY: {
         double * dY = (double *)Bs[term.Y];
         for (int64_t it = tree_pt_st; it < tree_pt_en; it++) {
-          double alpha = A_tree->dt[it];
+          double alpha = A_tree->dt[it].d;
           int64_t idx_i = A_tree->idx[0][it];
           double * dX = (double *)((double *)Bs[term.X] + lda_Bs[term.X][idx] * idx_i);
           #pragma omp simd

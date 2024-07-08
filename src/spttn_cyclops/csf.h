@@ -11,7 +11,7 @@ namespace CTF_int {
     public:
       int64_t ** idx;
       int64_t ** ptr;
-      dtype * dt;
+      CTF::Pair<dtype> * dt;
       int64_t * ldas;
       int64_t * nnz_level;
       int * phys_phase;
@@ -63,7 +63,6 @@ namespace CTF_int {
           ptr[i] = new int64_t[nnz_level[i] + 1];
         }
         idx[0] = new int64_t[nnz_local];
-        dt = new dtype[nnz_local];
 
         // Initialize idx and ptr
         int64_t it[order];
@@ -75,7 +74,6 @@ namespace CTF_int {
         for (int j = 0; j < order; j++) {
           int64_t idx_j = (pairs[0].k / ldas[j]) % lens[j];
           idx_j = idx_j / phys_phase[j];
-          if (j == 0) dt[it[j]] = pairs[0].d;
           if (j != 0) ptr[j][it[j]] = 0;
           idx[j][it[j]++] = idx_j;
         }
@@ -91,13 +89,13 @@ namespace CTF_int {
           }
           int64_t idx_j = (pairs[i].k / ldas[0]) % lens[0];
           idx_j = idx_j / phys_phase[0];
-          dt[it[0]] = pairs[i].d;
           idx[0][it[0]++] = idx_j;
           prev = pairs[i].k;
         }
         for (int j = order - 1; j >= 1; j--) {
           ptr[j][it[j]] = it[j-1];
         }
+        dt = pairs;
       }
 
       int64_t get_child_ptr(int level,
@@ -120,7 +118,7 @@ namespace CTF_int {
 
       dtype get_data(int64_t pt)
       {
-        return dt[pt];
+        return dt[pt].d;
       }
 
       void traverse_CSF(int64_t st_ptr,
@@ -130,7 +128,7 @@ namespace CTF_int {
         if (level == 0) {
           printf("level 0: ");
           for (int64_t i = st_ptr; i < en_ptr; i++) {
-            std::cout << idx[level][i] << " " << dt[i] << " ";
+            std::cout << idx[level][i] << " " << dt[i].d << " ";
           }
           std::cout << endl;
           return;
@@ -174,7 +172,6 @@ namespace CTF_int {
         delete [] idx[0];
         delete idx;
         delete ptr;
-        delete dt;
         delete [] ldas;
       }
   };
