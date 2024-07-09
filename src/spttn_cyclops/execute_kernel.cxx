@@ -55,6 +55,8 @@ namespace CTF_int {
       // IASSERT(termx.blas_kernel == RECURSIVE_LOOP);
       double * dX = (double *)Bs[termx.X]; 
       double * dY = (double *)Bs[termx.Y];
+      // assert failure if the buffer or the output is not dense
+      // IASSERT(dY != nullptr);
       if (termx.ALPHA == -1) {
         // IASSERT(termx.Y != (nBs-1));
         double alpha = A_tree->dt[tree_pt_st].d;
@@ -157,6 +159,10 @@ namespace CTF_int {
   {
     int iidx = level;
     int idx = term.index_order[iidx];
+    if (idx == -1) {
+      // scalar contraction
+      idx = term.index_order[iidx-1];
+    }
     switch (term.break_rec_idx[idx]) {
       case SPARSE_xAXPY: {
         double * dY = (double *)Bs[term.Y];
@@ -281,6 +287,19 @@ namespace CTF_int {
               *dY += *alpha * *dX;
             }
           }
+        }
+      }
+      break;
+      case SCALAR: {
+        double * dX = (double *)Bs[term.X]; 
+        double * dY = (double *)Bs[term.Y];
+        if (term.ALPHA == -1 && dY == nullptr) {
+          double alpha = A_tree->dt[tree_pt_st].d;
+          A_tree->dt_sp_op[tree_pt_st].d += alpha * *dX;
+        }
+        else {
+          // handle the cases where either the output or the buffer is sparse
+          IASSERT(0);
         }
       }
       break;

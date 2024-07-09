@@ -187,13 +187,18 @@ namespace CTF_int {
       std::cout << "prepare blas kernels: term_id: " << i << std::endl;
       contraction_terms<dtype> & term = terms[i];
       switch(term.blas_kernel) {
-        case RECURSIVE_LOOP: {
-          // use all the cases of SCALAR; need to have blas_kernel set to RECUSIVE_LOOP to handle when executing the contraction
-          if (rank == 0) std::cout << "term_id: " << i << " blas_kernel: " << "RECURSIVE_LOOP" << std::endl;
+        case NOT_SET: {
+          // use all the cases of RECURSIVE_LOOP
+          term.blas_kernel = RECURSIVE_LOOP;
+          if (rank == 0) std::cout << "term_id: " << i << " blas_kernel: " << "NOT_SET" << std::endl;
         }
         case SCALAR: {
-          // TODO: i==0 is dependent on contracting the tree first; do away with this dependency by just checking if the main sparse tensor is in the term
+          // use all the cases of SCALAR; need to have blas_kernel set to RECUSIVE_LOOP to handle when executing the contraction
           if (rank == 0) std::cout << "term_id: " << i << " blas_kernel: " << "SCALAR" << std::endl;
+        }
+        case RECURSIVE_LOOP: {
+          // TODO: i==0 is dependent on contracting the tree first; do away with this dependency by just checking if the main sparse tensor is in the term
+          if (rank == 0) std::cout << "term_id: " << i << " blas_kernel: " << "RECURSIVE_LOOP" << std::endl;
           if (i == 0) {
             // two dense factors are contracted in the first term
             if (term.Bs_in_term[nBs] == false) {
@@ -650,8 +655,8 @@ namespace CTF_int {
         }
       }
       else {
-        // TODO:
-        IASSERT(0);
+        // TODO: tucker_solve TTTP term 1 a <- abc bj
+        term.blas_kernel = RECURSIVE_LOOP;
       }
     }
     else if (num_idx == 3) {
@@ -915,7 +920,7 @@ namespace CTF_int {
           }
         }
         if (nidx_term[2] == 0) {
-          IASSERT(0);
+          std::cout << "term_id: " << i << " nidx_term[0]: " << nidx_term[0] << " nidx_term[1]: " << nidx_term[1] << " nidx_term[2]: " << nidx_term[2] << " inner_idx: " << terms[i].inner_idx << " reset_idx: " << terms[i].reset_idx << std::endl;
           IASSERT(terms[i].inner_idx != -1);
           /*
           for i:

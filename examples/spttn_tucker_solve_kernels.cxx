@@ -407,7 +407,7 @@ bool execute_spttn_kernel(int n, int ur, int vr, int wr,
       term id 0: 4 8 16 32
       term id 1: 4 2 8 16
       term id 2: 4 2 1 8
-      term id 3: 4 1 2
+      term id 3: 4 2 1
       niloops: 6
 
       i: 1 j: 2 k: 4 a: 8 b: 16 c: 32
@@ -424,10 +424,8 @@ bool execute_spttn_kernel(int n, int ur, int vr, int wr,
               buf2[a] += buf[a,b,c] * V[b,j]
           for i:
             for a:
-              buf[i] += buf2[a] * U[a,i]
-        for i:
-          for j:
-            Z_ijk += buf[i] * T[i,j,k]
+              buf += buf2[a] * U[a,i]
+            Z_ijk += buf * T[i,j,k]
 
       */
 
@@ -459,7 +457,8 @@ bool execute_spttn_kernel(int n, int ur, int vr, int wr,
       if (dw.rank == 0) printf("ijk,ai,bj,ck,abc->ijk using SpTTN-Cyclops (NOTE that it includes CSF construction time; please see total time to calculate printed above): %1.2lf\n", (etime - stime));
 
       stime = MPI_Wtime();
-      UCxx["ijk"] = T["ijk"] * U["ai"] * V["bj"] * W["ck"] * C["abc"];
+      UCxx["ijk"] = T["ijk"];
+      UCxx["ijk"] += T["ijk"] * U["ai"] * V["bj"] * W["ck"] * C["abc"];
       etime = MPI_Wtime();
       if (dw.rank == 0) printf("ijk,ai,bj,ck,abc->ijk using CTF: %1.2lf\n", (etime - stime));
 

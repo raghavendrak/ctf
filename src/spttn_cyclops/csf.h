@@ -98,6 +98,7 @@ namespace CTF_int {
           ptr[j][it[j]] = it[j-1];
         }
         dt = pairs;
+        dt_sp_op = nullptr;
       }
 
       int64_t get_child_ptr(int level,

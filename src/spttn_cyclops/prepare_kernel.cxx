@@ -428,16 +428,14 @@ namespace CTF_int {
     for (int i = 0; i < nterms; i++) {
       contraction_terms<dtype> & term = terms[i];
       std::fill_n(term.break_rec_idx, num_indices+1, RECURSIVE_LOOP);
+      int idx = term.index_order[term.index_order_sz-1];
       if (term.blas_kernel == SCALAR) {
-        int idx = term.index_order[term.index_order_sz-1];
         term.break_rec_idx[idx] = SCALAR;
       }
       else if (term.blas_kernel == RECURSIVE_LOOP) {
-        int idx = term.index_order[term.index_order_sz-1];
         term.break_rec_idx[idx] = RECURSIVE_LOOP;
       }
       else {
-        IASSERT(term.blas_kernel != SCALAR);
         IASSERT(term.blas_kernel != -1);
         term.break_rec_idx[term.blas_idx] = term.blas_kernel;
       }
@@ -510,7 +508,7 @@ namespace CTF_int {
       if (A->wrld->rank == 0) printf("output redistribution total time: %1.2lf\n", (etime - stime));
     }
     else {
-      IASSERT(0);
+      // no need to redistribute output
     }
     if (A->wrld->rank == 0) printf("total time to calculate: %1.2lf\n", (tot_time));
 

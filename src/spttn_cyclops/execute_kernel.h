@@ -91,6 +91,7 @@ namespace CTF_int{
         blas_idx = -1;
         tbuffer_sz = -1;
         break_rec_idx = (int *)CTF_int::alloc(sizeof(int) * (num_indices+1));
+        blas_kernel = 0; // NOT_SET
 
         index_order = (int *)CTF_int::alloc(sizeof(int) * (num_indices+1));
         std::fill_n(index_order, (num_indices+1), -1);
@@ -192,46 +193,5 @@ namespace CTF_int{
                  int                         nterms,
                  int                         num_indices,
                  int64_t **                  lda_Bs);
-#ifdef YET_TO_COMPILE
-#ifdef OLD_CODE
-
-   /*
-   void gen_inv_idx(int                     order_A,
-                    int const *             idx_A,
-                    int                     nBs,
-                    int *                   order_Bs,
-                    const int * const *     idx_Bs,
-                    int *                   order_tot,
-                    int ***                 idx_arr);
-    */
-
-   /*
-    * this function can be invoked from gen_contraction::execute()
-    * definition visible to the compiler
-    */
-   /*
-   template <typename dtype> 
-   void traverse_CSF(CSF<dtype> * A_tree) {}
-   */
-
-    void dnBs_loop(char const *              alpha,
-                           int                       nBs,
-                           char **      Bs,
-                           const algstrct * const *  sr_Bs,
-                           const int64_t * const *   lda_Bs,
-                           bivar_function const *    func,
-                           const int * const *       rev_idx_map,
-                           double                    dt_AB,
-                           std::vector<std::pair<int, int64_t> >          nidx_Bs,
-                           std::vector<int>          tidx_Bs);
-   
-
-    void optimize_contraction_order(std::vector<std::pair<int, int64_t> > & nidx_Bs,
-                                  int                 nBs,
-                                  const int * const *       rev_idx_map,
-                                  std::vector<int> &         tidx_Bs);
-
-#endif
-#endif
 }
 #endif
