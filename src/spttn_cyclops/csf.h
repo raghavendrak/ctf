@@ -12,6 +12,8 @@ namespace CTF_int {
       int64_t ** idx;
       int64_t ** ptr;
       CTF::Pair<dtype> * dt;
+      // for the sparse output tensor in SpTTN kernels that have the same sparsity pattern as the input tensor
+      CTF::Pair<dtype> * dt_sp_op;
       int64_t * ldas;
       int64_t * nnz_level;
       int * phys_phase;
@@ -119,6 +121,11 @@ namespace CTF_int {
       dtype get_data(int64_t pt)
       {
         return dt[pt].d;
+      }
+
+      void init_sp_op(CTF::Pair<dtype> * pairs)
+      {
+        dt_sp_op = pairs;
       }
 
       void traverse_CSF(int64_t st_ptr,

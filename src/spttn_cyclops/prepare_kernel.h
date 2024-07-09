@@ -54,6 +54,8 @@ namespace CTF_int {
       int nterms;
       /** \brief contraction order by index */
       int * index_order;
+      /** \brief maximum intermediate tensor dimension */
+      int max_buf_dim;
       /** \brief number of indices */
       int num_indices; 
       /** \brief if true, do not redistribute the output tensor */
@@ -90,6 +92,7 @@ namespace CTF_int {
                       const std::string *       terms,
                       int                       nterms,
                       const std::string &       index_order,
+                      int                       max_buf_dim,
                       bool                      retain_op=false,
                       tensor **                 redis_op=nullptr,
                       char const *              alpha=NULL,
@@ -102,6 +105,7 @@ namespace CTF_int {
                       const std::string *       terms,
                       int                       nterms,
                       const std::string &       index_order,
+                      int                       max_buf_dim,
                       bool                      retain_op=false,
                       tensor **                 redis_op=nullptr,
                       char const *              alpha=NULL,
@@ -114,6 +118,7 @@ namespace CTF_int {
                       const std::string *       terms,
                       int                       nterms,
                       const std::string *       index_order,
+                      int                       max_buf_dim,
                       bool                      retain_op=false,
                       tensor **                 redis_op=nullptr,
                       char const *              alpha=NULL,
@@ -123,6 +128,7 @@ namespace CTF_int {
                       tensor **                 Bs,
                       int                       nBs,
                       const char * const *      idx_Bs,
+                      int                       max_buf_dim,
                       bool                      retain_op=false,
                       tensor **                 redis_op=nullptr,
                       char const *              alpha=NULL,
@@ -1239,6 +1245,7 @@ namespace CTF_int {
                                    int *                          order_Bs,
                                    int **                         idx_Bs,
                                    int                            num_indices,
+                                   int                            max_buf_dim,
                                    const int                      rank)
   {
     // sparse tensor + (nBs-1), excluding the output tensor
@@ -1309,8 +1316,8 @@ namespace CTF_int {
       for (size_t i = 0; i < paths.size(); i++) {
         // choose a contraction path that can be implemented with the given constraints
         if (path_cost[i] != pick_cp_cost) continue;
-        int thres_buf_sz = 2;
-        local_index_order * lio = new local_index_order(nterms, all_inds, sp_inds, numones, paths[i], cp_cache, thres_buf_sz, sp_buffer);
+        // int thres_buf_sz = 2;
+        local_index_order * lio = new local_index_order(nterms, all_inds, sp_inds, numones, paths[i], cp_cache, max_buf_dim, sp_buffer);
         uint16_t S = 0;
         uint8_t sT = 0;
         uint8_t eT = nterms-1;

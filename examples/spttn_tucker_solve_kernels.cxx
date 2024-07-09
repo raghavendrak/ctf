@@ -94,11 +94,11 @@ bool execute_spttn_kernel(int n, int ur, int vr, int wr,
       UCxx.norm2(norm);
       int64_t sz = T.get_tot_size(false);
       bool pass = (norm / sz < 1.e-5);
-      if (dw.rank == 0){
+      if (dw.rank == 0) {
         if (!pass)
-          printf("Test passed.\n");
-        else
           printf("Test failed.\n");
+        else
+          printf("Test passed.\n");
       }
       IASSERT(pass);
       mpass = mpass & pass;
@@ -247,11 +247,11 @@ bool execute_spttn_kernel(int n, int ur, int vr, int wr,
       UCxx.norm2(norm);
       int64_t sz = T.get_tot_size(false);
       bool pass = (norm / sz < 1.e-5);
-      if (dw.rank == 0){
+      if (dw.rank == 0) {
         if (!pass)
-          printf("Test passed.\n");
-        else
           printf("Test failed.\n");
+        else
+          printf("Test passed.\n");
       }
       IASSERT(pass);
       mpass = mpass & pass;
@@ -358,11 +358,11 @@ bool execute_spttn_kernel(int n, int ur, int vr, int wr,
       UCxx.norm2(norm);
       int64_t sz = T.get_tot_size(false);
       bool pass = (norm / sz < 1.e-5);
-      if (dw.rank == 0){
+      if (dw.rank == 0) {
         if (!pass)
-          printf("Test passed.\n");
-        else
           printf("Test failed.\n");
+        else
+          printf("Test passed.\n");
       }
       IASSERT(pass);
       mpass = mpass & pass;
@@ -395,6 +395,40 @@ bool execute_spttn_kernel(int n, int ur, int vr, int wr,
             for a:
               buf2 += buf[a] * U[a,i]
             Z_ijk += buf2 * T_ijk
+
+
+      with thres_buf_sz = 2
+      path chosen: 0
+      ta: 8 tb: 16 tab: 24 inds: 28
+      ta: 4 tb: 24 tab: 28 inds: 14
+      ta: 2 tb: 28 tab: 30 inds: 7
+      ta: 1 tb: 30 tab: 31 inds: 7
+      total loop depth: 15
+      term id 0: 4 8 16 32
+      term id 1: 4 2 8 16
+      term id 2: 4 2 1 8
+      term id 3: 4 1 2
+      niloops: 6
+
+      i: 1 j: 2 k: 4 a: 8 b: 16 c: 32
+      T: 1 U: 2 V: 4 W: 8 C: 16
+      4 + 4 + 4 + 3 = 15
+      for k:
+        for a:
+          for b:
+            for c:
+              buf[a,b,c] += W[c,k] * C[a,b,c]
+        for j:
+          for a:
+            for b:
+              buf2[a] += buf[a,b,c] * V[b,j]
+          for i:
+            for a:
+              buf[i] += buf2[a] * U[a,i]
+        for i:
+          for j:
+            Z_ijk += buf[i] * T[i,j,k]
+
       */
 
       lens_uc[0] = ur; lens_uc[1] = n1; 
@@ -418,8 +452,9 @@ bool execute_spttn_kernel(int n, int ur, int vr, int wr,
       C.fill_random((dtype)0,(dtype)1);
 
       Tensor<dtype> * ops[5] = {&U, &V, &W, &C, &UC};
+      int max_buf_dim = 2;
       stime = MPI_Wtime();
-      spttn_kernel<dtype>(&T, ops, 5, "ijk,ai,bj,ck,abc->ijk");
+      spttn_kernel<dtype>(&T, ops, 5, "ijk,ai,bj,ck,abc->ijk", max_buf_dim);
       etime = MPI_Wtime();
       if (dw.rank == 0) printf("ijk,ai,bj,ck,abc->ijk using SpTTN-Cyclops (NOTE that it includes CSF construction time; please see total time to calculate printed above): %1.2lf\n", (etime - stime));
 
@@ -433,11 +468,11 @@ bool execute_spttn_kernel(int n, int ur, int vr, int wr,
       UCxx.norm2(norm);
       int64_t sz = T.get_tot_size(false);
       bool pass = (norm / sz < 1.e-5);
-      if (dw.rank == 0){
+      if (dw.rank == 0) {
         if (!pass)
-          printf("Test passed.\n");
-        else
           printf("Test failed.\n");
+        else
+          printf("Test passed.\n");
       }
       IASSERT(pass);
       mpass = mpass & pass;

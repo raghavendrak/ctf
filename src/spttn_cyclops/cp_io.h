@@ -479,6 +479,31 @@ namespace CTF_int {
         return false;
       }
 
+      // populate a single term
+      void optimize_for_blas (uint16_t S, uint8_t sT, uint8_t eT, uint16_t rem_inds)
+      {
+        // first push sparse indices
+        uint16_t cp_S = S;
+        for (int i = nindices; i >= 0; i--) {
+          if (((1 << i) & sp_inds) && (rem_inds & (1 << i))) {
+            if (apply_constraints(cp_S, sT, eT, (1<<i), 2)) {
+              assert(0);
+            }
+            icache[S][sT][eT].inds_order[0][0].push_back((1<<i));
+            cp_S |= (1 << i);
+            rem_inds &= ~(1 << i);
+          }
+        }
+        // then push dense indices
+        for (int i = 0; i < nindices; i++) {
+          if (rem_inds & (1 << i)) {
+            icache[S][sT][eT].inds_order[0][0].push_back((1<<i));
+            rem_inds &= ~(1 << i);
+          }
+        }
+        assert(rem_inds == 0);
+      }
+
       // (sT, eT) interval of terms
       void io_cost (uint16_t S,
           uint8_t sT, uint8_t eT)
@@ -525,11 +550,15 @@ namespace CTF_int {
           icache[S][sT][eT].max_buf_sz[0] = icache[S][sT][eT].max_buf_sz[1] = 0;
           assert(icache[S][sT][eT].inds_order[0][0].size() == 0);
           // populate the first index order
+          // potential to optimize for BLAS calls
+          optimize_for_blas(S, sT, eT, rem_inds);
+          /*
           for (int i = 0; i < nindices; i++) {
             if (rem_inds & (1 << i)) {
               icache[S][sT][eT].inds_order[0][0].push_back((1<<i));
             }
           }
+          */
           if (icache[S][sT][eT].inds_order[0][0].size() == 0) {
             assert(icache[S][sT][eT].inds_order[1][0].size() == 0);
           }
@@ -542,10 +571,16 @@ namespace CTF_int {
             // populate the second index order
             // interchange the first two indices in the first two index order and record it as the second index order
             assert(icache[S][sT][eT].inds_order[0][0][0] != icache[S][sT][eT].inds_order[0][0][1]);
-            icache[S][sT][eT].inds_order[1][0].push_back(icache[S][sT][eT].inds_order[0][0][1]);
-            icache[S][sT][eT].inds_order[1][0].push_back(icache[S][sT][eT].inds_order[0][0][0]);
-            icache[S][sT][eT].inds_order[1][0].insert(icache[S][sT][eT].inds_order[1][0].end(), icache[S][sT][eT].inds_order[0][0].begin()+2, icache[S][sT][eT].inds_order[0][0].end());
-            assert(icache[S][sT][eT].inds_order[1][0].size() == icache[S][sT][eT].inds_order[0][0].size());
+            // can the indices be switched?
+            if (apply_constraints(S, sT, eT, icache[S][sT][eT].inds_order[0][0][1], 2)) {
+              assert(icache[S][sT][eT].inds_order[1][0].size() == 0);
+            }
+            else {
+              icache[S][sT][eT].inds_order[1][0].push_back(icache[S][sT][eT].inds_order[0][0][1]);
+              icache[S][sT][eT].inds_order[1][0].push_back(icache[S][sT][eT].inds_order[0][0][0]);
+              icache[S][sT][eT].inds_order[1][0].insert(icache[S][sT][eT].inds_order[1][0].end(), icache[S][sT][eT].inds_order[0][0].begin()+2, icache[S][sT][eT].inds_order[0][0].end());
+              assert(icache[S][sT][eT].inds_order[1][0].size() == icache[S][sT][eT].inds_order[0][0].size());
+            }
           }
           // find dense indices after all sparse indices are removed and populate independent dense loops
           for (int j = 0; j < 2; j++) {
@@ -699,6 +734,10 @@ namespace CTF_int {
             if (icache[S][s+1][eT].inds_order[0][0].size() == 0) {
               // nothing to do; the term has already been iterated over at this level
             }
+            else if (icache[S][s+1][eT].computed == false) {
+              // should just have continue
+              assert(0);
+            }
             else if (q == icache[S][s+1][eT].inds_order[0][0][0]) {
               // term in the R branch has the same indices as the term in the L branch
               if (icache[S][s+1][eT].inds_order[1][0].size() == 0) {
@@ -792,23 +831,22 @@ namespace CTF_int {
               }
             }
           }
-          }
-          if (niloopss[0] == -1) {
-            // could not find a loop nest within the specified cost
-            return;
-          }
-          // update icache
-          assert(niloopss[0] != -1);
-          assert (icache[S][sT][eT].computed == false);
-
-          for (int j = 0; j < 2; j++) {
-            icache[S][sT][eT].niloops[j] = niloopss[j];
-            icache[S][sT][eT].max_buf_sz[j] = max_buf_szs[j];
-            icache[S][sT][eT].inds_order[j] = std::move(Ts[j]);
-          }
-          icache[S][sT][eT].computed = true;
         }
-      };
+        if (niloopss[0] == -1) {
+          // could not find a loop nest within the specified cost
+          return;
+        }
+        // update icache
+        assert(niloopss[0] != -1);
+        assert (icache[S][sT][eT].computed == false);
 
+        for (int j = 0; j < 2; j++) {
+          icache[S][sT][eT].niloops[j] = niloopss[j];
+          icache[S][sT][eT].max_buf_sz[j] = max_buf_szs[j];
+          icache[S][sT][eT].inds_order[j] = std::move(Ts[j]);
+        }
+        icache[S][sT][eT].computed = true;
+      }
+    };
   }
 #endif

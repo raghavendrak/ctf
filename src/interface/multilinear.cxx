@@ -1004,23 +1004,23 @@ namespace CTF {
   }
 
   template<typename dtype>
-  void spttn_kernel(Tensor<dtype> * A, Tensor<dtype> ** Bs, int nBs, const char * einsum_expr, std::string * terms, int nterms, std::string * index_order)
+  void spttn_kernel(Tensor<dtype> * A, Tensor<dtype> ** Bs, int nBs, const char * einsum_expr, std::string * terms, int nterms, std::string * index_order, int max_buf_dim)
   {
     IASSERT(terms != nullptr && index_order != nullptr);
     char * idx_A;
     char ** idx_Bs;
     CTF_int::parse_einsum(einsum_expr, &idx_A, &idx_Bs, nBs);
-    CTF_int::spttn_contraction<dtype> ctr = CTF_int::spttn_contraction<dtype>(A, idx_A, (CTF_int::tensor **)Bs, nBs, idx_Bs, terms, nterms, index_order);
+    CTF_int::spttn_contraction<dtype> ctr = CTF_int::spttn_contraction<dtype>(A, idx_A, (CTF_int::tensor **)Bs, nBs, idx_Bs, terms, nterms, index_order, max_buf_dim);
     ctr.execute();
   }
 
   template<typename dtype>
-  void spttn_kernel(Tensor<dtype> *A, Tensor<dtype> **Bs, int nBs, const char *einsum_expr)
+  void spttn_kernel(Tensor<dtype> *A, Tensor<dtype> **Bs, int nBs, const char *einsum_expr, int max_buf_dim)
   {
     char *idx_A;
     char **idx_Bs;
     CTF_int::parse_einsum(einsum_expr, &idx_A, &idx_Bs, nBs);
-    CTF_int::spttn_contraction<dtype> ctr = CTF_int::spttn_contraction<dtype>(A, idx_A, (CTF_int::tensor **)Bs, nBs, idx_Bs);
+    CTF_int::spttn_contraction<dtype> ctr = CTF_int::spttn_contraction<dtype>(A, idx_A, (CTF_int::tensor **)Bs, nBs, idx_Bs, max_buf_dim);
     ctr.execute();
   }
 

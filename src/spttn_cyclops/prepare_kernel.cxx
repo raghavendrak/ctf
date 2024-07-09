@@ -61,6 +61,7 @@ namespace CTF_int {
                                           const std::string *       terms_,
                                           int                       nterms_,
                                           const std::string &       sindex_order_,
+                                          int                       max_buf_dim_,
                                           bool                      retain_op_,
                                           tensor **                 redis_op_,
                                           char const *              alpha_,
@@ -76,6 +77,7 @@ namespace CTF_int {
                                           tensor **                 Bs_,
                                           int                       nBs_,
                                           const char * const *      cidx_Bs,
+                                          int                       max_buf_dim_,
                                           bool                      retain_op_,
                                           tensor **                 redis_op_,
                                           char const *              alpha_,
@@ -86,6 +88,7 @@ namespace CTF_int {
     nBs = nBs_;
     // nBs is number of Bs including the ouput. The number of input tensors including A is nBs
     nterms = nBs-1;
+    max_buf_dim = max_buf_dim_;
     retain_op = retain_op_;
     redis_op = redis_op_;
     func = func_;
@@ -128,7 +131,7 @@ namespace CTF_int {
     for (int i = 0; i < nterms; i++) {
       new(terms + i) contraction_terms<dtype>(dim_max, nBs);
     }
-    select_cp_io_populate_terms(cidx_A, cidx_Bs, nterms, terms, order_A, idx_A, nBs, order_Bs, idx_Bs, num_indices, A->wrld->rank);
+    select_cp_io_populate_terms(cidx_A, cidx_Bs, nterms, terms, order_A, idx_A, nBs, order_Bs, idx_Bs, num_indices, max_buf_dim, A->wrld->rank);
   }
 
   template<typename dtype>
@@ -140,6 +143,7 @@ namespace CTF_int {
                                           const std::string *       sterms,
                                           int                       nterms_,
                                           const std::string *       sindex_order,
+                                          int                       max_buf_dim_,
                                           bool                      retain_op_,
                                           tensor **                 redis_op_,
                                           char const *              alpha_,
@@ -149,6 +153,7 @@ namespace CTF_int {
     Bs = Bs_;
     nBs = nBs_;
     nterms = nterms_;
+    max_buf_dim = max_buf_dim_;
     retain_op = retain_op_;
     redis_op = redis_op_;
     func = func_;
@@ -207,6 +212,7 @@ namespace CTF_int {
                                               const std::string *       sterms,
                                               int                       nterms_,
                                               const std::string &       sindex_order,
+                                              int                       max_buf_dim_,
                                               bool                      retain_op_,
                                               tensor **                 redis_op_,
                                               char const *              alpha_,
@@ -352,8 +358,7 @@ namespace CTF_int {
     if (A->wrld->rank == 0) printf("tree construction time: %1.2lf\n", (etime - stime));
 
     if (Bs[nBs-1]->is_sparse) {
-      // allocate the sparse output tensor in the same tree structure as the input tensor
-      IASSERT(0);
+      A_csf.init_sp_op((Pair<dtype>*)Bs[nBs-1]->data);
     }
     
     stime = MPI_Wtime();
