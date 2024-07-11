@@ -16,7 +16,7 @@ class KnowValues(unittest.TestCase):
         Test spttn kernel for order 3 TTMc
         and all-mode order 3 TTMc
         """
-        einsum_expr = "ijk,ri,sj->rsk"
+        einsum_expr = "ijk,kr,js->isr"
         lens = [10,10,10]
         R = 4
         A = ctf.tensor(lens,sp=True)
@@ -27,13 +27,13 @@ class KnowValues(unittest.TestCase):
             tsrs.append(ctf.random.random(fac_lens))
         op_lens = [lens[2],R,R]
         tsrs.append(ctf.zeros(op_lens))
-        ctf.spttn_kernel(A, tsrs, 3, einsum_expr.encode())
+        ctf.spttn_kernel(A, tsrs, 3, einsum_expr)
         ctr = A.i("ijk")*tsrs[0].i("kr")*tsrs[1].i("js")
         ans = ctf.zeros(op_lens)
         ans.i("isr") << ctr
         self.assertTrue(allclose(ans, tsrs[2]))
 
-        einsum_expr = "ijk,ri,sj,tk->rst"
+        einsum_expr = "ijk,kr,js,it->tsr"
         A = ctf.tensor(lens,sp=True)
         A.fill_sp_random(-1.,1.,.5)
         tsrs = []
@@ -42,7 +42,7 @@ class KnowValues(unittest.TestCase):
             tsrs.append(ctf.random.random(fac_lens))
         op_lens = [R,R,R]
         tsrs.append(ctf.zeros(op_lens))
-        ctf.spttn_kernel(A, tsrs, 4, einsum_expr.encode())
+        ctf.spttn_kernel(A, tsrs, 4, einsum_expr)
         ctr = A.i("ijk")*tsrs[0].i("kr")*tsrs[1].i("js")*tsrs[2].i("it")
         ans = ctf.zeros(op_lens)
         ans.i("tsr") << ctr

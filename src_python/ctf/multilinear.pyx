@@ -193,6 +193,12 @@ def spttn_kernel(tensor A, tsrs_list, nBs, einsum_expr):
         t = tsrs_list[i]
         tsrs[i] = <Tensor[double]*>t.dt
     B = tensor(copy=A)
+    # python einsum expression to C einsum expression
+    inp_tsrs, op_tsr = (einsum_expr.split("->")[0].split(","), einsum_expr.split("->")[1])
+    mapping = {inp_tsrs[0][i]: inp_tsrs[0][-i-1] for i in range(len(inp_tsrs[0]))}
+    tr_einsum_expr = ''.join([inp_tsrs[0], ","]) + ','.join(inp_tsrs[i][::-1].translate(str.maketrans(mapping)) for i in range(1, len(inp_tsrs))) + "->" + op_tsr[::-1].translate(str.maketrans(mapping))
+    einsum_expr = tr_einsum_expr.encode()
+
     if A.dtype == np.float64:
         spttn_kernel_[double](<Tensor[double]*>B.dt,tsrs,nBs,<char *>einsum_expr)
     else:
