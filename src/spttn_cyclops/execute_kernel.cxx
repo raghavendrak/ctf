@@ -177,6 +177,19 @@ namespace CTF_int {
         }
       }
       break;
+      case SPARSE_xAXPY_OP_NOT_BUFFER: {
+        double * dX = (double *)Bs[term.X];
+        for (int64_t it = tree_pt_st; it < tree_pt_en; it++) {
+          double alpha = A_tree->dt[it].d;
+          int64_t idx_i = A_tree->idx[0][it];
+          double * dY = (double *)((double *)Bs[term.Y] + lda_Bs[term.Y][idx] * idx_i);
+          #pragma omp simd
+          for (int64_t i = 0; i < term.N; i++){
+            dY[i] += alpha * dX[i];
+          }
+        }
+      }
+      break;
       case xAXPY: {
         double * dX = (double *)Bs[term.X];
         double * dY = (double *)Bs[term.Y];
@@ -464,6 +477,9 @@ namespace CTF_int {
     for (int i = 0; i < nterms; i++) {
       if (terms[i].tbuffer_order == -1) continue;
       lda_Bs[nBs+i] = (int64_t *) CTF_int::alloc(sizeof(int64_t) * num_indices);
+      for (int j = 0; j < num_indices; j++) {
+        lda_Bs[nBs+i][j] = 0; // a case where this is queried and the index is not in the buffer; for example, when SPARSE_xAXPY is called with a buffer
+      }
       //(i,a): i is the fastest moving index
       lda_Bs[nBs+i][terms[i].idx_tbuffer[0]] = 1;
       for (int j = 1; j < terms[i].tbuffer_order; j++) {
@@ -513,6 +529,9 @@ namespace CTF_int {
     for (int i = 0; i < nterms; i++) {
       if (terms[i].tbuffer_order == -1) continue;
       lda_Bs[nBs+i] = (int64_t *) CTF_int::alloc(sizeof(int64_t) * num_indices);
+      for (int j = 0; j < num_indices; j++) {
+        lda_Bs[nBs+i][j] = 0; // a case where this is queried and the index is not in the buffer; for example, when SPARSE_xAXPY is called with a buffer
+      }
       //(i,a): i is the fastest moving index
       lda_Bs[nBs+i][terms[i].idx_tbuffer[0]] = 1;
       for (int j = 1; j < terms[i].tbuffer_order; j++) {
