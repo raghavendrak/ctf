@@ -5,26 +5,28 @@
 #include <sys/types.h>
 
 namespace CTF_int {
+  class debug_spttn_cyclops;
   struct CPCache {
     uint16_t inds;
     int8_t cost;
     std::vector<std::pair<uint16_t, uint16_t> > orders;
+    debug_spttn_cyclops spttn_print;
 
     CPCache() : inds(0), cost(-1) {}
 
     void print() 
     {
-      std::cout << " cost: " << (int)cost << std::endl;
+      spttn_print << " cost: " << (int)cost << std::endl;
       int x = 0;
       for (int i = 0; i < 16; i++) {
         if (inds & (1 << i)) {
-          std::cout << x << " ";
+          spttn_print << x << " ";
         }
         x++;
       }
-      std::cout << std::endl;
+      spttn_print << std::endl;
       for (auto & p : orders) {
-        std::cout << "  " << p.first << " " << p.second << std::endl;
+        spttn_print << "  " << p.first << " " << p.second << std::endl;
       }
     }
   };
@@ -34,10 +36,11 @@ namespace CTF_int {
     uint16_t tb;
     uint16_t tab;
     uint16_t inds;
+    debug_spttn_cyclops spttn_print;
 
     void print()
     {
-      std::cout << " ta: " << ta << " tb: " << tb << " tab: " << tab << " inds: " << inds << std::endl;
+      spttn_print << " ta: " << ta << " tb: " << tb << " tab: " << tab << " inds: " << inds << std::endl;
     }
   };
 
@@ -47,8 +50,9 @@ namespace CTF_int {
       CPCache * cp_cache;
       uint16_t op_inds;
       int ntensors;
-      uint8_t numones[65536];
+      uint8_t numones[65536];      
       int64_t num_pushes;
+      debug_spttn_cyclops spttn_print;
 
       contraction_path()
       {
@@ -289,6 +293,7 @@ namespace CTF_int {
     int8_t niloops[2];
     int8_t max_buf_sz[2];
     bool computed;
+    debug_spttn_cyclops spttn_print;
 
     ICache() {
       niloops[0] = niloops[1] = -1;
@@ -300,13 +305,13 @@ namespace CTF_int {
     {
       uint8_t nterms_interval = eT - sT + 1;
       for (int i = 0; i < nterms_interval; i++) {
-        std::cout << "icache[" << S << "][" << (int)sT+i << "]: ";
+        spttn_print << "icache[" << S << "][" << (int)sT+i << "]: ";
         for (size_t k = 0; k < inds_order[0][i].size(); k++) {
-          std::cout << inds_order[0][i][k] << " ";
+          spttn_print << inds_order[0][i][k] << " ";
         }
-        std::cout << std::endl;
+        spttn_print << std::endl;
       }
-      std::cout << "niloops: " << (int)niloops[0] << " max_buf_sz: " << (int)max_buf_sz[0] << std::endl;
+      spttn_print << "niloops: " << (int)niloops[0] << " max_buf_sz: " << (int)max_buf_sz[0] << std::endl;
     }
 
     void init_element_in_icache(uint16_t S, uint8_t sT, uint8_t eT, uint16_t * term_inds, uint8_t * numones) 
@@ -345,7 +350,7 @@ namespace CTF_int {
       for (int i = 0; i < nterms_interval; i++) {
         for (int j = 0; j < 2; j++) {
           for (size_t k = 0; k < inds_order[j][i].size(); k++) {
-            std::cout << "S: " << std::bitset<8>(S) << " inds_order: " << inds_order[j][i][k] << std::endl;
+            spttn_print << "S: " << std::bitset<8>(S) << " inds_order: " << inds_order[j][i][k] << std::endl;
             assert(!(S & (1 << (int)log2(inds_order[j][i][k]))));
           }
         }
@@ -369,6 +374,7 @@ namespace CTF_int {
       uint8_t * gc;
       uint16_t * term_inds;
       int64_t icache_sz;
+      debug_spttn_cyclops spttn_print;
 
       local_index_order(int nterms_, 
           uint16_t all_inds_,

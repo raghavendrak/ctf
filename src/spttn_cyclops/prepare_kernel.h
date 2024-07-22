@@ -13,6 +13,7 @@ namespace CTF_int {
   class topology; 
   class distribution;
   class mapping;
+  class debug_spttn_cyclops;
   
   template<typename dtype>
   class contraction_terms;
@@ -180,26 +181,27 @@ namespace CTF_int {
                             int **                      idx_Bs,
                             const int                   rank)
   {
-    std::cout << "----------------------prepare_blas_kernels----------------------" << std::endl;
+    debug_spttn_cyclops spttn_print;
+    spttn_print << "----------------------prepare_blas_kernels----------------------" << std::endl;
     int64_t ** lda_Bs;
     lda_Bs = (int64_t **) CTF_int::alloc(sizeof(int64_t *) * (nBs+nterms));
     calc_ldas(nBs, order_Bs, edge_len_Bs, idx_Bs, terms, nterms, idx_max, lda_Bs);
     for (int i = 0; i < nterms; i++) {
-      std::cout << "prepare blas kernels: term_id: " << i << std::endl;
+      spttn_print << "prepare blas kernels: term_id: " << i << std::endl;
       contraction_terms<dtype> & term = terms[i];
       switch(term.blas_kernel) {
         case NOT_SET: {
           // use all the cases of RECURSIVE_LOOP
           term.blas_kernel = RECURSIVE_LOOP;
-          if (rank == 0) std::cout << "term_id: " << i << " blas_kernel: " << "NOT_SET" << std::endl;
+          if (rank == 0) spttn_print << "term_id: " << i << " blas_kernel: " << "NOT_SET" << std::endl;
         }
         case SCALAR: {
           // use all the cases of SCALAR; need to have blas_kernel set to RECUSIVE_LOOP to handle when executing the contraction
-          if (rank == 0) std::cout << "term_id: " << i << " blas_kernel: " << "SCALAR" << std::endl;
+          if (rank == 0) spttn_print << "term_id: " << i << " blas_kernel: " << "SCALAR" << std::endl;
         }
         case RECURSIVE_LOOP: {
           // TODO: i==0 is dependent on contracting the tree first; do away with this dependency by just checking if the main sparse tensor is in the term
-          if (rank == 0) std::cout << "term_id: " << i << " blas_kernel: " << "RECURSIVE_LOOP" << std::endl;
+          if (rank == 0) spttn_print << "term_id: " << i << " blas_kernel: " << "RECURSIVE_LOOP" << std::endl;
           if (i == 0) {
             // two dense factors are contracted in the first term
             if (term.Bs_in_term[nBs] == false) {
@@ -215,6 +217,10 @@ namespace CTF_int {
                 }
               }
               IASSERT(term.ALPHA != -1 && term.X != -1);
+              // both are input tensors
+              // TODO: can replace the above code with 
+              // if(term.blas_B_ids[0] != nBs) { term.ALPHA = term.blas_B_ids[0]; term.X = term.blas_B_ids[1]; }
+              IASSERT(term.blas_B_ids[0] == term.ALPHA && term.blas_B_ids[1] == term.X);
             }
             else {
               term.ALPHA = -1;
@@ -224,10 +230,14 @@ namespace CTF_int {
                   break;
                 }
               }
+              // sparse tensor is contracted with an input tensor
+              IASSERT(term.blas_B_ids[0] == nBs && term.blas_B_ids[1] == term.X);
             }
             term.Y = nBs + i;
+            IASSERT(term.blas_B_ids[2] == term.Y);
           }
           else {
+            /*
             term.ALPHA = nBs + term.inp_buf_id;
             term.X = -1;
             for (int j = 0; j < nBs - 1; j++) {
@@ -242,25 +252,44 @@ namespace CTF_int {
               term.X = nBs + term.inp_buf_id;
               term.ALPHA = -1;
             }
+            */
+            // term.blas_B_ids[0] == nBs for both sparse tensor and intermediate tensor from term 0 since term.blas_B_ids is set as nBs + i
+            // if (term.blas_B_ids[0] == nBs) {
+            if (term.Bs_in_term[nBs] == true) {
+              spttn_print << "term.blas_B_ids[0]: " << term.blas_B_ids[0] << std::endl;
+              IASSERT(term.blas_B_ids[0] == nBs);
+              term.ALPHA = -1;
+              term.X = term.blas_B_ids[1];
+            }
+            else {
+              term.ALPHA = term.blas_B_ids[0];
+              term.X = term.blas_B_ids[1];
+            }
             if (i == (nterms - 1)) term.Y = nBs - 1;
             else term.Y = nBs + i;
-            if (i == (nterms-1)) {
-              std::cout << "term.X: " << term.X << " term.ALPHA: " << term.ALPHA << " term.Y: " << term.Y << std::endl;
-            }
+            IASSERT(term.blas_B_ids[2] == term.Y);
           }
         }
         break;
         case DENSE_3D_TO_xAXPY: {
+          // assert failure: currently does not work with two intermediate tensors in the term
+          IASSERT(term.i_inp_buf_id < 2);
+          spttn_print << "term.i_inp_buf_id: " << term.i_inp_buf_id << std::endl;
           int rev_blas_idx = term.rev_index_order[term.blas_idx];
           int idx = term.index_order[rev_blas_idx+2];
-          std::cout << "idx: " << idx << " " << terms[term.inp_buf_id].idx_tbuffer[0] << " " << idx_Bs[term.blas_B_ids[1]][0] << std::endl; 
-          if (idx == terms[term.inp_buf_id].idx_tbuffer[0]) {
+          // if (idx == terms[term.inp_buf_id].idx_tbuffer[0]) {
+          IASSERT(term.Bs_in_term[nBs] == false);
+          IASSERT(term.blas_B_ids[0]-nBs == term.inp_buf_ids[0]);
+          IASSERT(term.blas_B_ids[1] < nBs);
+          if (idx == terms[term.blas_B_ids[0]-nBs].idx_tbuffer[0]) {
             term.ALPHA = term.blas_B_ids[1];
-            term.X = term.inp_buf_id + nBs;
+            // term.X = term.inp_buf_id + nBs;
+            term.X = term.blas_B_ids[0];
             term.INCX = lda_Bs[term.X][idx]; 
           }
           else if (rev_idx_map[term.blas_B_ids[1]][idx] != -1) {
-            term.ALPHA = term.inp_buf_id + nBs;
+            // term.ALPHA = term.inp_buf_id + nBs;
+            term.ALPHA = term.blas_B_ids[0];
             term.X = term.blas_B_ids[1]; 
             term.INCX =lda_Bs[term.X][idx]; 
           }
@@ -269,25 +298,26 @@ namespace CTF_int {
             i--;
             break;
           }
-          if (i != (nterms-1)) {
-            term.Y = nBs + i;
-          }
-          else {
-            term.Y = nBs - 1;
-          }
+          spttn_print << "term.ALPHA: " << term.ALPHA << " term.X: " << term.X << " term.INCX: " << term.INCX << std::endl;
+          term.Y = term.blas_B_ids[2];
           term.INCY = lda_Bs[term.Y][idx];
           term.N = len_idx[idx];
           term.blas_idx = idx;
           term.blas_kernel = xAXPY;
-          std::cout << "term.ALPHA: " << term.ALPHA << " term.X: " << term.X << " term.INCX: " << term.INCX << " term.Y: " << term.Y << " term.INCY: " << term.INCY << " term.blas_idx: " << term.blas_idx << " term.N: " << term.N << std::endl;
         }
         break;
         case DENSE_3D: {
-          if (rank == 0) std::cout << "term_id: " << i << " blas_kernel: " << "DENSE_3D" << std::endl;
+          if (rank == 0) spttn_print << "term_id: " << i << " blas_kernel: " << "DENSE_3D" << std::endl;
           term.blas_kernel = DENSE_3D_TO_xAXPY;
           i--;
-          break;
-          IASSERT(term.blas_ops[0] != MAIN_TENSOR);
+        }
+        break;
+        case xAXPY: {
+          if (rank == 0) spttn_print << "term_id: " << i << " blas_kernel: " << "xAXPY" << std::endl;
+          // assert failure: can use SPARSE_xAXPY instead
+          IASSERT(term.Bs_in_term[nBs] == false);
+          int idx = term.blas_idx;
+          /*
           if (term.blas_ops[0] == INTERMEDIATE_TENSOR) {
             term.ALPHA = nBs + term.inp_buf_id;
           }
@@ -297,56 +327,51 @@ namespace CTF_int {
           term.X = term.blas_B_ids[1];
           if (i != (nterms-1)) {
             term.Y = nBs + i;
+            term.INCX = lda_Bs[term.X][idx];
           }
           else {
             term.Y = nBs - 1;
+            term.INCX = 1;
           }
-        }
-        break;
-        case xAXPY: {
-          if (rank == 0) std::cout << "term_id: " << i << " blas_kernel: " << "xAXPY" << std::endl;
-          // assert failure: can use SPARSE_xAXPY instead
-          IASSERT(term.blas_ops[0] != MAIN_TENSOR);
-          std::cout << "term_id: " << i << " (nterms-1): " << (nterms-1) << std::endl;
-            int idx = term.blas_idx;
-            if (term.blas_ops[0] == INTERMEDIATE_TENSOR) {
-              term.ALPHA = nBs + term.inp_buf_id;
-            }
-            else {
-              term.ALPHA = term.blas_B_ids[0];
-            }
-            term.X = term.blas_B_ids[1];
-            if (i != (nterms-1)) {
-              term.Y = nBs + i;
-              term.INCX = lda_Bs[term.X][idx];
-            }
-            else {
-              term.Y = nBs - 1;
-              term.INCX = 1;
-            }
-            term.INCY = lda_Bs[term.Y][idx];
-            term.N = len_idx[idx];
-            std::cout << "N: " << term.N << "INCX: " << term.INCX << "INCY: " << term.INCY << std::endl;
+          term.INCY = lda_Bs[term.Y][idx];
+          term.N = len_idx[idx];
+          */
+          term.ALPHA = term.blas_B_ids[0];
+          term.X = term.blas_B_ids[1];
+          term.Y = term.blas_B_ids[2];
+          term.INCX = lda_Bs[term.X][idx];
+          term.INCY = lda_Bs[term.Y][idx];
+          term.N = len_idx[idx];
         }
         break;
         case xGER_TO_xAXPY: {
+          // assert failure: currently does not work with two intermediate tensors in the term
+          IASSERT(term.i_inp_buf_id < 2);
           int rev_blas_idx = term.rev_index_order[term.blas_idx];
           int idx_X1 = term.index_order[rev_blas_idx];
           int idx_X2 = term.index_order[rev_blas_idx+1];
-          std::cout << "blas_idx: " << term.blas_idx << " idx_X1: " << idx_X1 << " idx_X2: " << idx_X2 << std::endl;
-          if (idx_X2 == terms[term.inp_buf_id].idx_tbuffer[0]) {
+          // if (idx_X2 == terms[term.inp_buf_id].idx_tbuffer[0]) {
+          IASSERT(term.Bs_in_term[nBs] == false);
+          IASSERT(term.blas_B_ids[0]-nBs == term.inp_buf_ids[0]);
+          IASSERT(term.blas_B_ids[1] < nBs);
+          // if (idx_X2 == terms[term.inp_buf_id].idx_tbuffer[0]) {
+          if (idx_X2 == terms[term.blas_B_ids[0]-nBs].idx_tbuffer[0]) {
             term.ALPHA = term.blas_B_ids[1];
-            term.X = term.inp_buf_id + nBs;
+            // term.X = term.inp_buf_id + nBs;
+            term.X = term.blas_B_ids[0];
             term.INCX = lda_Bs[term.X][idx_X2]; 
           }
           else if (idx_X2 == idx_Bs[term.blas_B_ids[1]][0]) {
-            term.ALPHA = term.inp_buf_id + nBs;
+            // term.ALPHA = term.inp_buf_id + nBs;
+            term.ALPHA = term.blas_B_ids[0];
             term.X = term.blas_B_ids[1]; 
             term.INCX =lda_Bs[term.X][idx_X2]; 
           }
-          else if (idx_X2 == terms[term.inp_buf_id].idx_tbuffer[1]) {
+          // else if (idx_X2 == terms[term.inp_buf_id].idx_tbuffer[1]) {
+          else if (idx_X2 == terms[term.blas_B_ids[0]-nBs].idx_tbuffer[1]) {
             term.ALPHA = term.blas_B_ids[1];
-            term.X = term.inp_buf_id + nBs;
+            // term.X = term.inp_buf_id + nBs;
+            term.X = term.blas_B_ids[0];
             term.INCX = lda_Bs[term.X][idx_X2]; 
           } 
           else {
@@ -360,15 +385,21 @@ namespace CTF_int {
           else {
             term.Y = nBs - 1;
           }
+          IASSERT(term.blas_B_ids[2] == term.Y);
           term.INCY = lda_Bs[term.Y][idx_X2];
           term.N = len_idx[idx_X2];
           term.blas_idx = idx_X2;
           term.blas_kernel = xAXPY;
-          std::cout << "term.ALPHA: " << term.ALPHA << " term.X: " << term.X << " term.INCX: " << term.INCX << " term.Y: " << term.Y << " term.INCY: " << term.INCY << " term.blas_idx: " << term.blas_idx << " term.N: " << term.N << std::endl;
         }
         break;
         case SPARSE_xAXPY: {
-          if (rank == 0) std::cout << "term_id: " << i << " blas_kernel: " << "SPARSE_xAXPY" << std::endl;
+          if (rank == 0) spttn_print << "term_id: " << i << " blas_kernel: " << "SPARSE_xAXPY" << std::endl;
+          if (term.blas_B_ids[0] != nBs) {
+            term.blas_kernel = xAXPY;
+            i--;
+            break;
+          }
+          /*
           if (term.blas_ops[0] != MAIN_TENSOR) {
             if (term.index_order[3] != 1) {
               term.blas_idx = term.index_order[3];
@@ -382,8 +413,23 @@ namespace CTF_int {
               break;
             }
           }
+          */
           term.ALPHA = -1;
           int idx = -1;
+          term.X = term.blas_B_ids[1];
+          term.Y = term.blas_B_ids[2];
+          idx = term.Y >= nBs ? terms[term.Y-nBs].idx_tbuffer[0] : idx_Bs[term.Y][0];
+          int idx_X1 = term.X >= nBs ? terms[term.X-nBs].idx_tbuffer[0] : idx_Bs[term.X][0];
+          if (idx != idx_X1) {
+            term.blas_kernel = RECURSIVE_LOOP;
+            i--;
+            break;
+          }
+          term.INCX = lda_Bs[term.X][idx];
+          term.INCY = lda_Bs[term.Y][idx];
+          IASSERT(term.INCX == 1 && term.INCY == 1);
+          term.N = len_idx[idx];
+          /*
           if (i != (nterms-1)) {
             term.X = term.blas_B_ids[1]; // an input tensor
             term.Y = nBs + i; // buffer
@@ -396,7 +442,10 @@ namespace CTF_int {
           }
           else {
             term.blas_kernel = SPARSE_xAXPY_OP_NOT_BUFFER;
-            term.X = nBs + term.inp_buf_id; // an intermediate tensor (one of the other input in the pairwise contraction is the main tensor)
+            // an intermediate tensor (one of the other input in the pairwise contraction is the main tensor)
+            // term.X = nBs + term.inp_buf_id;
+            term.X = nBs + term.inp_buf_ids[0]; 
+            IASSERT(term.X == term.blas_B_ids[1]);
             term.Y = nBs - 1;
             idx = idx_Bs[term.Y][0];
             if (idx != terms[term.inp_buf_id].idx_tbuffer[0]) {
@@ -410,14 +459,19 @@ namespace CTF_int {
           term.INCY = lda_Bs[term.Y][idx];
           IASSERT(term.INCX == 1 && term.INCY == 1);
           term.N = len_idx[idx];
+          */
+          spttn_print << "done SPARSE_xAXPY" << std::endl;
         }
         break;
         case DENSE_xAXPY_2D: {
-          if (rank == 0) std::cout << "term_id: " << i << " blas_kernel: " << "DENSE_xAXPY_2D" << std::endl;
-          // assert failure: one of the inputs should be an intermediate tensor
-          IASSERT(term.blas_ops[0] == INTERMEDIATE_TENSOR);
-          int idx_X1 = terms[term.inp_buf_id].idx_tbuffer[0];
-          int idx_X2 = terms[term.inp_buf_id].idx_tbuffer[1];
+          if (rank == 0) spttn_print << "term_id: " << i << " blas_kernel: " << "DENSE_xAXPY_2D" << std::endl;
+          // assert failure: currently does not work with two intermediate tensors in the term
+          IASSERT(term.i_inp_buf_id < 2);
+          int idx_X1 = terms[term.blas_B_ids[0]-nBs].idx_tbuffer[0];
+          int idx_X2 = terms[term.blas_B_ids[0]-nBs].idx_tbuffer[1];
+          IASSERT(term.Bs_in_term[nBs] == false);
+          IASSERT(term.blas_B_ids[0]-nBs == term.inp_buf_ids[0]);
+          IASSERT(term.blas_B_ids[1] < nBs);
           if (i == (nterms -1) && (idx_X1 != idx_Bs[nBs-1][0] || idx_X2 != idx_Bs[nBs-1][1])) {
             // a stride of idx
             if (idx_X1 == idx_Bs[nBs-1][1] && idx_X2 == idx_Bs[nBs-1][2]) {
@@ -425,7 +479,8 @@ namespace CTF_int {
               term.INCY = len_idx[idx_Bs[nBs-1][0]];
               term.blas_kernel = DENSE_STRIDED;
               term.ALPHA = term.blas_B_ids[1];
-              term.X = term.inp_buf_id + nBs;
+              // term.X = term.inp_buf_id + nBs;
+              term.X = term.blas_B_ids[0];
               term.N = len_idx[idx_X1] * len_idx[idx_X2];
               term.Y = nBs-1;
             }
@@ -438,7 +493,8 @@ namespace CTF_int {
             break;
           }
           term.ALPHA = term.blas_B_ids[1];
-          term.X = term.inp_buf_id + nBs;
+          // term.X = term.inp_buf_id + nBs;
+          term.X = term.blas_B_ids[0];
           term.N = len_idx[idx_X1] * len_idx[idx_X2];
           if (i == (nterms-1)) {
             // assert failure: xAXPY_2D with strides is not supported
@@ -454,15 +510,18 @@ namespace CTF_int {
         }
         break;
         case DENSE_xAXPY_3D: {
-          if (rank == 0) std::cout << "term_id: " << i << " blas_kernel: " << "DENSE_xAXPY_3D" << std::endl;
-          // assert failure: one of the inputs should be an intermediate tensor
-          IASSERT(term.blas_ops[0] == INTERMEDIATE_TENSOR);
-          int idx_X1 = terms[term.inp_buf_id].idx_tbuffer[0];
-          int idx_X2 = terms[term.inp_buf_id].idx_tbuffer[1];
-          int idx_X3 = terms[term.inp_buf_id].idx_tbuffer[2];
-          std::cout << "idx_X1: " << idx_X1 << " idx_X2: " << idx_X2 << " idx_X3: " << idx_X3 << std::endl;
+          if (rank == 0) spttn_print << "term_id: " << i << " blas_kernel: " << "DENSE_xAXPY_3D" << std::endl;
+          // assert failure: currently does not work with two intermediate tensors in the term
+          IASSERT(term.i_inp_buf_id < 2);
+          int idx_X1 = terms[term.blas_B_ids[0]-nBs].idx_tbuffer[0];
+          int idx_X2 = terms[term.blas_B_ids[0]-nBs].idx_tbuffer[1];
+          int idx_X3 = terms[term.blas_B_ids[0]-nBs].idx_tbuffer[2];
+          IASSERT(term.Bs_in_term[nBs] == false);
+          IASSERT(term.blas_B_ids[0]-nBs == term.inp_buf_ids[0]);
+          IASSERT(term.blas_B_ids[1] < nBs);
           term.ALPHA = term.blas_B_ids[1];
-          term.X = term.inp_buf_id + nBs;
+          // term.X = term.inp_buf_id + nBs;
+          term.X = term.blas_B_ids[0];
           term.N = len_idx[idx_X1] * len_idx[idx_X2] * len_idx[idx_X3];
           if (i == (nterms-1)) {
             // assert failure: xAXPY_2D with strides is not supported
@@ -476,10 +535,61 @@ namespace CTF_int {
         }
         break;
         case xGER: {
-          if (rank == 0) std::cout << "term_id: " << i << " blas_kernel: " << "xGER" << std::endl;
+          if (rank == 0) spttn_print << "term_id: " << i << " blas_kernel: " << "xGER" << std::endl;
+          // A <- alpha * x * y^T + A
           term.ALPHA = 1.0;
           int idx_X;
           int idx_Y;
+          // output
+          term.A = term.blas_B_ids[2];
+          if (term.A == nBs - 1) {
+            idx_X = idx_Bs[term.A][0];
+            idx_Y = idx_Bs[term.A][1];
+          }
+          else {
+            IASSERT(term.blas_B_ids[2] == i + nBs);
+            idx_X = terms[i].idx_tbuffer[0];
+            idx_Y = terms[i].idx_tbuffer[1];
+          }
+          // input
+          int idx_X1 = term.blas_B_ids[0] >= nBs ? terms[term.blas_B_ids[0]-nBs].idx_tbuffer[0] : idx_Bs[term.blas_B_ids[0]][0];
+          int idx_X2 = term.blas_B_ids[1] >= nBs ? terms[term.blas_B_ids[1]-nBs].idx_tbuffer[0] : idx_Bs[term.blas_B_ids[1]][0];
+          if (idx_X == idx_X1) {
+            if (idx_Y != idx_X2) {
+              term.blas_kernel = RECURSIVE_LOOP;
+              i--;
+              break;
+            }
+            term.X = term.blas_B_ids[0];
+            term.INCX = lda_Bs[term.X][idx_X];
+            term.Y = term.blas_B_ids[1];
+            term.INCY = lda_Bs[term.Y][idx_Y];
+          }
+          else if (idx_X == idx_X2) {
+            if (idx_Y != idx_X1) {
+              term.blas_kernel = RECURSIVE_LOOP;
+              i--;
+              break;
+            }
+            term.X = term.blas_B_ids[1];
+            term.INCX = lda_Bs[term.X][idx_X];
+            term.Y = term.blas_B_ids[0];
+            term.INCY = lda_Bs[term.Y][idx_Y];
+          }
+          else {
+            if (rev_idx_map[nBs][idx_X] != -1) {
+              term.blas_kernel = RECURSIVE_LOOP;
+            }
+            else {
+              term.blas_kernel = xGER_TO_xAXPY;
+            }
+            i--;
+            break;          
+          }
+          term.M = len_idx[idx_X];
+          term.N = len_idx[idx_Y];
+          term.LDA = term.M;
+          /*
           if (term.blas_ops[0] == INTERMEDIATE_TENSOR) {
             IASSERT(term.inp_buf_id != -1); 
             if (i == (nterms-1)) {
@@ -491,7 +601,7 @@ namespace CTF_int {
               term.A = i + nBs;
               idx_X = term.idx_tbuffer[0];
               idx_Y = term.idx_tbuffer[1]; 
-              std::cout << "idx_X: " << idx_X << " idx_Y: " << idx_Y << std::endl;
+              spttn_print << "idx_X: " << idx_X << " idx_Y: " << idx_Y << std::endl;
             }
             // if the intermediate tensor of this term's fastest moving index is the same as the input intermediate tensor
             if (idx_X == terms[term.inp_buf_id].idx_tbuffer[0]) {
@@ -526,30 +636,37 @@ namespace CTF_int {
             }
             term.M = len_idx[idx_X];
             term.N = len_idx[idx_Y];
-            term.LDA = term.M; 
+            term.LDA = term.M;
           }
           else {
             // assert failure: xGER with two inputs Bs not supported
             IASSERT(0);
           }
+          */
         }
         break;
         case xVEC_MUL: {
-          if (rank == 0) std::cout << "term_id: " << i << " blas_kernel: " << "xVEC_MUL" << std::endl;
+          if (rank == 0) spttn_print << "term_id: " << i << " blas_kernel: " << "xVEC_MUL" << std::endl;
           int idx = term.blas_idx;
+          /*
           if (term.blas_ops[0] == INTERMEDIATE_TENSOR) {
             term.ALPHA = nBs + term.inp_buf_id;
           }
           else {
             term.ALPHA = term.blas_B_ids[0];
           }
+          */
+          term.ALPHA = term.blas_B_ids[0];
           term.X = term.blas_B_ids[1];
+          /*
           if (i == (nterms-1)) {
             term.Y = nBs - 1;
           }
           else {
             term.Y = nBs + i;
           }
+          */
+          term.Y = term.blas_B_ids[2];
           term.INCX = lda_Bs[term.X][idx];
           term.INCY = lda_Bs[term.Y][idx];
           // assert failure: xVEC_MUL with strides is not supported
@@ -570,7 +687,7 @@ namespace CTF_int {
       cdealloc(lda_Bs[i+nBs]);
     }
     cdealloc(lda_Bs);
-    std::cout << "------------------------------------------------------------------" << std::endl;
+    spttn_print << "------------------------------------------------------------------" << std::endl;
   }
    
   template <typename dtype>
@@ -582,8 +699,10 @@ namespace CTF_int {
                           contraction_terms<dtype> *  terms,
                           int                         num_indices,
                           int **                      idx_Bs,
+                          int                         nBs,
                           const int                   rank)
   {
+    debug_spttn_cyclops spttn_print;
     IASSERT(nidx_term[2] > 0);
     contraction_terms<dtype> & term = terms[term_id]; 
     bool recursive_loop = false;
@@ -599,15 +718,18 @@ namespace CTF_int {
         if (term.sparse_idx != -1) {
           term.blas_idx = term.sparse_idx;
           term.blas_kernel = SPARSE_xAXPY;
-          if (rank == 0) std::cout << "term_id: " << term_id << " blas_kernel: " << "SPARSE_xAXPY" << std::endl;
+          if (rank == 0) spttn_print << "term_id: " << term_id << " blas_kernel: " << "SPARSE_xAXPY" << std::endl;
         }
         else {
           term.blas_kernel = xAXPY;
-          if (rank == 0) std::cout << "term_id: " << term_id << " blas_kernel: " << "xAXPY" << std::endl;
+          if (rank == 0) spttn_print << "term_id: " << term_id << " blas_kernel: " << "xAXPY" << std::endl;
         }
       }
       else if (nidx_term[0] == 1 && nidx_term[1] == 1) {
         int idx_X, idx_Y;
+        idx_X = term.blas_B_ids[0] >= nBs ? terms[term.blas_B_ids[0]-nBs].idx_tbuffer[0] : idx_Bs[term.blas_B_ids[0]][0];
+        idx_Y = term.blas_B_ids[1] >= nBs ? terms[term.blas_B_ids[1]-nBs].idx_tbuffer[0] : idx_Bs[term.blas_B_ids[1]][0];
+        /*
         if (term.blas_ops[0] == INTERMEDIATE_TENSOR) {
           idx_X = terms[term.inp_buf_id].idx_tbuffer[0];
         }
@@ -615,13 +737,14 @@ namespace CTF_int {
           idx_X = idx_Bs[term.blas_B_ids[0]][0]; 
         }
         idx_Y = idx_Bs[term.blas_B_ids[1]][0];
+        */
         if (idx_X != idx_Y) {
           term.blas_kernel = RECURSIVE_LOOP;
-          if (rank == 0) std::cout << "term_id: " << term_id << " blas_kernel: " << "RECURSIVE_LOOP" << std::endl;
+          if (rank == 0) spttn_print << "term_id: " << term_id << " blas_kernel: " << "RECURSIVE_LOOP" << std::endl;
           return;
         }
         term.blas_kernel = xVEC_MUL;
-        if (rank == 0) std::cout << "term_id: " << term_id << " blas_kernel: " << "xVEC_MUL" << std::endl;
+        if (rank == 0) spttn_print << "term_id: " << term_id << " blas_kernel: " << "xVEC_MUL" << std::endl;
       }
       else {
         // TODO: ttmc_o3_allm rkji rskj trks
@@ -634,12 +757,12 @@ namespace CTF_int {
         if (nidx_term[1] == 1) {
           IASSERT(nidx_term[2] == 2);
           term.blas_kernel = xGER;
-          if (rank == 0) std::cout << "term_id: " << term_id << " blas_kernel: " << "xGER" << std::endl;
+          if (rank == 0) spttn_print << "term_id: " << term_id << " blas_kernel: " << "xGER" << std::endl;
         }
         else {
           IASSERT(nidx_term[1] == 2 && nidx_term[2] == 1);
           term.blas_kernel = xGEMV;
-          if (rank == 0) std::cout << "term_id: " << term_id << " blas_kernel: " << "xGEMV" << std::endl;
+          if (rank == 0) spttn_print << "term_id: " << term_id << " blas_kernel: " << "xGEMV" << std::endl;
         }
       }
       else if (nidx_term[0] == 2 && nidx_term[1] == 0) {
@@ -655,24 +778,23 @@ namespace CTF_int {
             IASSERT(nidx_term[2] == 3);
             term.dense_idx = -1;
             term.blas_kernel = DENSE_xAXPY_2D;
-            if (rank == 0) std::cout << "term_id: " << term_id << " blas_kernel: " << "DENSE_xAXPY_2D" << std::endl;
+            if (rank == 0) spttn_print << "term_id: " << term_id << " blas_kernel: " << "DENSE_xAXPY_2D" << std::endl;
           }
         }
         else if (((nidx_term[0] == 2 && nidx_term[1] == 3) || (nidx_term[0] == 3 && nidx_term[1] == 2)) && nidx_term[2] == 1) {       
           // potential for xGEMV call
           IASSERT(0);
-          if (term.blas_ops[0] == INTERMEDIATE_TENSOR) {
-          
-          }
         }
         else {
           // TODO: ttmc_o3_allm rkji rskj tkrs
           term.blas_kernel = RECURSIVE_LOOP;
+          if (rank == 0) spttn_print << "term_id: " << term_id << " blas_kernel: " << "RECURSIVE_LOOP" << std::endl;
         }
       }
       else {
         // TODO: tucker_solve TTTP term 1 a <- abc bj
         term.blas_kernel = RECURSIVE_LOOP;
+        if (rank == 0) spttn_print << "term_id: " << term_id << " blas_kernel: " << "RECURSIVE_LOOP" << std::endl;
       }
     }
     else if (num_idx == 3) {
@@ -687,17 +809,18 @@ namespace CTF_int {
           IASSERT(nidx_term[2] == 3);
           term.dense_idx = -1;
           term.blas_kernel = DENSE_xAXPY_2D;
-          if (rank == 0) std::cout << "term_id: " << term_id << " blas_kernel: " << "DENSE_xAXPY_2D" << std::endl;
+          if (rank == 0) spttn_print << "term_id: " << term_id << " blas_kernel: " << "DENSE_xAXPY_2D" << std::endl;
         }
       }
       else if (((nidx_term[0] == 2 && nidx_term[1] == 3) || (nidx_term[0] == 3 && nidx_term[1] == 2)) && nidx_term[2] == 1) {       
         term.blas_kernel = DENSE_3D;
+        if (rank == 0) spttn_print << "term_id: " << term_id << " blas_kernel: " << "DENSE_3D" << std::endl;
         return;
       }
     }
     else if (num_idx == 4) {
       term.blas_kernel = DENSE_xAXPY_3D;
-      std::cout << "term_id: " << term_id << " blas_kernel: " << "DENSE_xAXPY_3D" << std::endl;
+      spttn_print << "term_id: " << term_id << " blas_kernel: " << "DENSE_xAXPY_3D" << std::endl;
     }
     else {
       IASSERT(0);
@@ -717,6 +840,7 @@ namespace CTF_int {
                          int **                     idx_Bs,
                          const int                  rank)
   {
+    debug_spttn_cyclops spttn_print;
     int idx;
     bool ** in_term_idx;
     in_term_idx = (bool **)CTF_int::alloc(sizeof(bool*) * 3);
@@ -732,6 +856,26 @@ namespace CTF_int {
         IASSERT(terms[i].dense_idx == -1);
         IASSERT(terms[i].sparse_idx == -1);
         terms[i].blas_kernel = SCALAR;
+        // set blas_B_ids
+        int inp = 0;
+        if (terms[i].Bs_in_term[nBs] == true) terms[i].blas_B_ids[inp++] = nBs;
+        for (int k = 0; k < terms[i].i_inp_buf_id; k++) {
+          int inp_buf_id = terms[i].inp_buf_ids[k];
+          terms[i].blas_B_ids[inp++] = inp_buf_id + nBs;
+        }
+        for (int k = 0; k < nBs-1; k++) {
+          if (terms[i].Bs_in_term[k] == true) {
+            terms[i].blas_B_ids[inp++] = k;
+          }
+        }
+        if (i < nterms-1) {
+          terms[i].blas_B_ids[inp++] = i + nBs;
+        }
+        else {
+          terms[i].blas_B_ids[inp++] = nBs - 1;
+        }
+        IASSERT(inp == 3);
+
         continue; 
       }
       for (int k = 0; k < 3; k++) {
@@ -741,8 +885,11 @@ namespace CTF_int {
       }
       int inp = 0;
       for (int j = 0; j < 3; j++) nidx_term[j] = 0;
-      // for a term: {(sparse_tensor/inp_B/intermediate) * (inp_B) -> (intermediate/op_B)}
+      // for a term: {(sparse_tensor/inp_B/intermediate) * (inp_B/intermediate) -> (intermediate/op_B)}
+      // follow the convention of how nidx_term[] was populated: main tensor followed by intermediate tensors followed by input tensors followed by output tensor
+      // check if the main tensor is in the term
       if (terms[i].Bs_in_term[nBs] == true) {
+        terms[i].blas_B_ids[inp] = nBs;
         for (int j = 0; j < order_A; j++) {
           idx = idx_A[j];
           if (terms[i].rev_index_order[idx] >= terms[i].inner_rev_idx) {
@@ -752,19 +899,26 @@ namespace CTF_int {
         }
         inp++;
       }
+      // check if any intermediate tensors are in the term
       if (i > 0) {
         // all terms except the first are using tbuffer
-        for (int j = 0; j < terms[i-1].tbuffer_order; j++) {
-          idx = terms[i-1].idx_tbuffer[j];
-          if (terms[i].rev_index_order[idx] >= terms[i].inner_rev_idx) {
-            in_term_idx[inp][idx] = true;
-            nidx_term[inp]++;
+        for (int k = 0; k < terms[i].i_inp_buf_id; k++) {
+          int inp_buf_id = terms[i].inp_buf_ids[k];
+          terms[i].blas_B_ids[inp] = inp_buf_id + nBs;
+          for (int j = 0; j < terms[inp_buf_id].tbuffer_order; j++) {
+            idx = terms[inp_buf_id].idx_tbuffer[j];
+            if (terms[i].rev_index_order[idx] >= terms[i].inner_rev_idx) {
+              in_term_idx[inp][idx] = true;
+              nidx_term[inp]++;
+            }
           }
+          inp++;
         }
-        inp++;
       }
+      // check if any input tensors are in the term
       for (int k = 0; k < nBs-1; k++) {
         if (terms[i].Bs_in_term[k] == true) {
+          terms[i].blas_B_ids[inp] = k;
           for (int j = 0; j < order_Bs[k]; j++) {
             idx = idx_Bs[k][j];
             if (terms[i].rev_index_order[idx] >= terms[i].inner_rev_idx) {
@@ -777,7 +931,8 @@ namespace CTF_int {
       }
       IASSERT(inp == 2);
       if (i < nterms-1) {
-        // all terms except the last are writing to tbuffer
+        terms[i].blas_B_ids[inp++] = i + nBs;
+        // all terms except the last are writing to tbuffer allocated in this term
         for (int j = 0; j < terms[i].tbuffer_order; j++) {
           idx = terms[i].idx_tbuffer[j];
           if (terms[i].rev_index_order[idx] >= terms[i].inner_rev_idx) {
@@ -787,8 +942,9 @@ namespace CTF_int {
         }
       }
       else {
+        terms[i].blas_B_ids[inp++] = nBs - 1;
         // IASSERT(terms[i].Bs_in_term[nBs-1] == true);
-        // assume the output is written in the last term - we are not setting it in the code; for optimization later
+        // assume the output is written in the last term - we are not setting it in the code (so the above assert fails); for optimization later
         for (int j = 0; j < order_Bs[nBs-1]; j++) {
           idx = idx_Bs[nBs-1][j];
           if (terms[i].rev_index_order[idx] >= terms[i].inner_rev_idx) {
@@ -797,6 +953,8 @@ namespace CTF_int {
           }
         }
       }
+      IASSERT(inp == 3);
+
       // check if more than one sparse index requires sparse_loop() infra
       int nsp_idx = 0;
       int dense_sp_idx = -1;
@@ -914,6 +1072,7 @@ namespace CTF_int {
       }
 
       if (num_idx > 0) {
+        /*
         int op = 0;
         if (terms[i].Bs_in_term[nBs] == true) {
           terms[i].blas_ops[op++] = MAIN_TENSOR;
@@ -928,6 +1087,8 @@ namespace CTF_int {
           }
         }
         IASSERT(op == 2);
+        */
+
         for (int io = 0; io < num_indices; io++) {
           idx = terms[i].index_order[io];
           if (in_term_idx[0][idx] == true || in_term_idx[1][idx] == true) {
@@ -936,7 +1097,7 @@ namespace CTF_int {
           }
         }
         if (nidx_term[2] == 0) {
-          std::cout << "term_id: " << i << " nidx_term[0]: " << nidx_term[0] << " nidx_term[1]: " << nidx_term[1] << " nidx_term[2]: " << nidx_term[2] << " inner_idx: " << terms[i].inner_idx << " reset_idx: " << terms[i].reset_idx << std::endl;
+          spttn_print << "term_id: " << i << " nidx_term[0]: " << nidx_term[0] << " nidx_term[1]: " << nidx_term[1] << " nidx_term[2]: " << nidx_term[2] << " inner_idx: " << terms[i].inner_idx << " reset_idx: " << terms[i].reset_idx << std::endl;
           IASSERT(terms[i].inner_idx != -1);
           /*
           for i:
@@ -948,14 +1109,14 @@ namespace CTF_int {
           IASSERT(terms[i].reset_idx != -1);
           // treat this as a RECURSIVE_LOOP and not as SCALAR
           terms[i].blas_kernel = RECURSIVE_LOOP;
-          std::cout << "term_id: " << i << " blas_kernel: " << "RECURSIVE_LOOP" << std::endl;
+          spttn_print << "term_id: " << i << " blas_kernel: " << "RECURSIVE_LOOP" << std::endl;
           continue;
         }
-        select_blas_kernel<dtype>(i, in_term_idx, nidx_term, num_idx, len_idx, terms, num_indices, idx_Bs, rank);
+        select_blas_kernel<dtype>(i, in_term_idx, nidx_term, num_idx, len_idx, terms, num_indices, idx_Bs, nBs, rank);
       }
       else {
         terms[i].blas_kernel = RECURSIVE_LOOP;
-        if (rank == 0) std::cout << "term_id: " << i << " blas_kernel: " << "RECURSIVE_LOOP" << std::endl;
+        if (rank == 0) spttn_print << "term_id: " << i << " blas_kernel: " << "RECURSIVE_LOOP" << std::endl;
       }
     }
     for(int i = 0; i < 3; i++) CTF_int::cdealloc(in_term_idx[i]);
@@ -969,8 +1130,9 @@ namespace CTF_int {
                        contraction_terms<dtype> * terms,
                        const int                  rank)
   {
+    debug_spttn_cyclops spttn_print;
     if (rank == 0) {
-      std::cout << "----------------Allocating intermediate tensors------------------------" << std::endl;      
+      spttn_print << "----------------Allocating intermediate tensors------------------------" << std::endl;      
     }
     for (int i = 0; i < nterms - 1; i++) {
       IASSERT(terms[i].out_buf_id != -1);
@@ -1010,14 +1172,14 @@ namespace CTF_int {
         terms[i].tbuffer_sz = tbuf_size;
       }
       if (rank == 0) {
-        std::cout << "term id: " << i << " tbuffer size: " << tbuf_size << " tbuffer order: " << tbo << std::endl;
+        spttn_print << "term id: " << i << " tbuffer size: " << tbuf_size << " tbuffer order: " << tbo << std::endl;
         for (int k = 0; k < tbo; k++) {
-          std::cout << "idx: " << terms[i].idx_tbuffer[k] << " len: " << terms[i].len_idx[k] << std::endl;
+          spttn_print << "idx: " << terms[i].idx_tbuffer[k] << " len: " << terms[i].len_idx[k] << std::endl;
         }
       }
     }
     if (rank == 0) {
-      std::cout << "-------------------------------------------------------------" << std::endl;      
+      spttn_print << "-------------------------------------------------------------" << std::endl;      
     }
   }
 
@@ -1219,9 +1381,11 @@ namespace CTF_int {
       for (int j = 0; j < i; j++) {
         if (op_sterms[j].compare(pairs[0]) == 0 || op_sterms[j].compare(pairs[1]) == 0) {
           // assert failure: both the inputs to this term are intermediate tensors
-          IASSERT(terms[i].inp_buf_id == -1);
-          terms[i].inp_buf_id = j;
+          // IASSERT(terms[i].inp_buf_id == -1);
+          // terms[i].inp_buf_id = j;
           terms[j].out_buf_id = i;
+          IASSERT(terms[i].inp_buf_ids[terms[i].i_inp_buf_id] == -1);
+          terms[i].inp_buf_ids[terms[i].i_inp_buf_id++] = j;
         }
       }
     }
@@ -1269,6 +1433,7 @@ namespace CTF_int {
                                    int                            max_buf_dim,
                                    const int                      rank)
   {
+    debug_spttn_cyclops spttn_print;
     // sparse tensor + (nBs-1), excluding the output tensor
     int ntensors = nBs;
     uint16_t op_inds = 0;
@@ -1308,7 +1473,7 @@ namespace CTF_int {
     uint16_t optimal_cp_cost = cp->optimal_contraction_paths(lt, ntensors);
     std::vector<std::vector<CTerm> > paths = cp->enumerate_all_paths(tid);
     if (rank == 0) {
-      std::cout << "num paths: " << paths.size() << " optimal contraction path cost: " << (int)optimal_cp_cost << std::endl;
+      spttn_print << "num paths: " << paths.size() << " optimal contraction path cost: " << (int)optimal_cp_cost << std::endl;
     }
     uint8_t numones[65536];
     popcount_init(numones);
@@ -1345,7 +1510,7 @@ namespace CTF_int {
         lio->io_cost(S, sT, eT);
         if (lio->icache[S][sT][eT].computed == false) {
           if (rank == 0) {
-            std::cout << "\nCould not find an optimal loop nest for the below path" << std::endl;
+            spttn_print << "\nCould not find an optimal loop nest for the below path" << std::endl;
             for (size_t j = 0; j < paths[i].size(); j++) {
               paths[i][j].print();
             }
@@ -1366,14 +1531,14 @@ namespace CTF_int {
         pick_cp_cost++;
         if (pick_cp_cost > max_cp_cost && sp_buffer == false) {
           if (rank == 0) {
-            std::cout << "Could not find any optimal loop nest for the given constraints with dense buffer indices" << std::endl;
+            spttn_print << "Could not find any optimal loop nest for the given constraints with dense buffer indices" << std::endl;
           }
           pick_cp_cost = optimal_cp_cost;
           sp_buffer = true;
         }
         else if (pick_cp_cost > max_cp_cost) {
           if (rank == 0) {
-            std::cout << "Could not find any optimal loop nest for the given constraints with sparse buffer indices" << std::endl;
+            spttn_print << "Could not find any optimal loop nest for the given constraints with sparse buffer indices" << std::endl;
           }
           IASSERT(0);
         }
@@ -1381,8 +1546,8 @@ namespace CTF_int {
     }
 
     if (rank == 0) {
-      std::cout << "============================" << std::endl;   
-      std::cout << "path chosen: " << path << std::endl;
+      spttn_print << "============================" << std::endl;   
+      spttn_print << "path chosen: " << path << std::endl;
     }
     if (niloops != -1) {
       // populate term[].index_order, term[].rev_index_order, term[].index_order_sz
@@ -1400,13 +1565,13 @@ namespace CTF_int {
         tflops += flops;
       }
       if (rank == 0) {
-        std::cout << "total loop depth: " << (int)tflops << std::endl;
+        spttn_print << "total loop depth: " << (int)tflops << std::endl;
         for (int i = 0; i < nterms; i++) {
-          std::cout << "term id " << i << ": ";
+          spttn_print << "term id " << i << ": ";
           for (size_t k = 0; k < optimal_io[i].size(); k++) {
-            std::cout << optimal_io[i][k] << " ";
+            spttn_print << optimal_io[i][k] << " ";
           }
-          std::cout << std::endl;
+          spttn_print << std::endl;
         }
       }
       IASSERT((int)paths[path].size() == nterms);
@@ -1428,8 +1593,8 @@ namespace CTF_int {
           if (tab == paths[path][k].ta || tab == paths[path][k].tb) {
             terms[i].out_buf_id = k;
             // assert failure: both the inputs to this term are intermediate tensors
-            IASSERT(terms[k].inp_buf_id == -1);
-            terms[k].inp_buf_id = i;
+            IASSERT(terms[k].inp_buf_ids[terms[k].i_inp_buf_id] == -1);
+            terms[k].inp_buf_ids[terms[k].i_inp_buf_id++] = i;
           }
         }
         // main tensor indices
@@ -1474,7 +1639,7 @@ namespace CTF_int {
         }
       }
       for (int i = 0; i < nterms; i++) {
-        if (rank == 0) std::cout << "term id " << i << ": ";
+        if (rank == 0) spttn_print << "term id " << i << ": ";
         for (size_t k = 0; k < optimal_io[i].size(); k++) {
           int iidx = log2(optimal_io[i][k]);
           terms[i].index_order[k] = iidx;
@@ -1482,11 +1647,11 @@ namespace CTF_int {
         }
         terms[i].index_order_sz = optimal_io[i].size();
         if (rank == 0) {
-          std::cout << "terms[" << i << "].index_order_sz = " << terms[i].index_order_sz << std::endl;
+          spttn_print << "terms[" << i << "].index_order_sz = " << terms[i].index_order_sz << std::endl;
           for (int k = 0; k < num_indices; k++) {
-            std::cout << terms[i].index_order[k] << " ";
+            spttn_print << terms[i].index_order[k] << " ";
           }
-          std::cout << std::endl;
+          spttn_print << std::endl;
         }
         if (terms[i].index_order_sz < num_indices) {
           // index_order is filled with num_indices in contraction_terms constructor
@@ -1494,17 +1659,17 @@ namespace CTF_int {
         }
       }
       if (rank == 0) {
-        std::cout << "niloops: " << (int)niloops << std::endl;
+        spttn_print << "niloops: " << (int)niloops << std::endl;
       }
     }
     else {
       IASSERT(0);
       if (rank == 0) {
-        std::cout << "Could not find an optimal loop nest for the given constraints" << std::endl; 
+        spttn_print << "Could not find an optimal loop nest for the given constraints" << std::endl; 
       }
     }
     if (rank == 0) {
-      std::cout << "============================" << std::endl;
+      spttn_print << "============================" << std::endl;
     }
     delete cp;
     delete [] cp_cache;

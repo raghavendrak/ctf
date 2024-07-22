@@ -702,9 +702,11 @@ namespace CTF_int {
       i++;
     }
     IASSERT((i-1) == nBs);
+#ifdef DEBUG_SPTTN_CYCLOPS
     for (int j = 0; j < nBs; j++) {
       std::cout << "cidx_Bs[" << j << "]: " << (*cidx_Bs)[j] << std::endl;
     }
+#endif
   }
 
   template<typename type>

@@ -83,6 +83,12 @@ namespace CTF_int {
                                           char const *              alpha_,
                                           bivar_function const *    func_) 
   {
+#ifdef DEBUG_SPTTN_CYCLOPS
+    debug_spttn_cyclops::enabled() = true;
+#else
+    debug_spttn_cyclops::enabled() = false;
+#endif
+    debug_spttn_cyclops spttn_print;
     A = A_;
     Bs = Bs_;
     nBs = nBs_;
@@ -106,11 +112,11 @@ namespace CTF_int {
 
     if (A->wrld->rank == 0) {
       for (int i = 0; i < order_A; i++) {
-        std::cout << "idx_A[" << i << "] = " << idx_A[i] << std::endl;
+        spttn_print << "idx_A[" << i << "] = " << idx_A[i] << std::endl;
       }
       for (int j = 0; j < nBs; j++) {
         for (int i = 0; i < order_Bs[j]; i++) {
-          std::cout << "idx_Bs[" << j << "][" << i << "] = " << idx_Bs[j][i] << std::endl;
+          spttn_print << "idx_Bs[" << j << "][" << i << "] = " << idx_Bs[j][i] << std::endl;
         }
       }
     }
@@ -149,6 +155,12 @@ namespace CTF_int {
                                           char const *              alpha_,
                                           bivar_function const *    func_) 
   {
+#ifdef DEBUG_SPTTN_CYCLOPS
+    debug_spttn_cyclops::enabled() = true;
+#else
+    debug_spttn_cyclops::enabled() = false;
+#endif
+    debug_spttn_cyclops spttn_print;
     A = A_;
     Bs = Bs_;
     nBs = nBs_;
@@ -186,7 +198,7 @@ namespace CTF_int {
     for (int i = 0; i < nterms; i++)
       new(terms + i) contraction_terms<dtype>(dim_max, nBs);
     for (int i = 0; i < nterms; i++) {
-      std::cout << "sterms[" << i << "] = " << sterms[i] << std::endl;
+      spttn_print << "sterms[" << i << "] = " << sterms[i] << std::endl;
     }
     term_idx<dtype>(cidx_A, cidx_Bs, sterms, nterms, terms, order_A, idx_A, nBs, order_Bs, idx_Bs); 
 
@@ -224,6 +236,7 @@ namespace CTF_int {
   template<typename dtype>
   void spttn_contraction<dtype>::execute()
   {
+    debug_spttn_cyclops spttn_print;
     Tensor<dtype> ** redist_Bs = (Tensor<dtype>**)malloc(sizeof(Tensor<dtype>*) * nBs);
     int64_t comm_lda[nBs];
     
@@ -450,16 +463,16 @@ namespace CTF_int {
     if (A->wrld->rank == 0) printf("preamble time: %1.2lf\n", (etime - stime));
 
     // print the terms
-    std::cout << "--------------------------------------------" << std::endl;
+    spttn_print << "--------------------------------------------" << std::endl;
     for (int i = 0; i < nterms; i++) {
       contraction_terms<dtype> & term = terms[i];
       if (A->wrld->rank == 0) {
-        std::cout << "blas_kernel: " << enumToStr<dtype>(static_cast<CTF_int::BREAK_REC>(term.blas_kernel)) << std::endl;
-        std::cout << "blas_idx: " << term.blas_idx << std::endl;
-        std::cout << "reset_idx: " << term.reset_idx << std::endl;
+        spttn_print << "blas_kernel: " << enumToStr<dtype>(static_cast<CTF_int::BREAK_REC>(term.blas_kernel)) << std::endl;
+        spttn_print << "blas_idx: " << term.blas_idx << std::endl;
+        spttn_print << "reset_idx: " << term.reset_idx << std::endl;
       }
     }
-    std::cout << "--------------------------------------------" << std::endl;
+    spttn_print << "--------------------------------------------" << std::endl;
     stime = MPI_Wtime();
     spA_dnBs_gen_ctr(alpha, &A_csf, sr_A, A->order, idx_A, nBs, Bs_data, sr_Bs, order_Bs, len_Bs, edge_len_Bs, len_idx, idx_Bs, rev_idx_map, num_indices, terms, nterms, func);
     MPI_Barrier(MPI_COMM_WORLD);
@@ -496,7 +509,7 @@ namespace CTF_int {
         Bs[nBs-1]->operator[](s.data()) += redist_Bs[nBs-1]->operator[](s.data());
       }
       else if (dten[nBs-1] == 1) {
-        std::cout << "Not broadcasting output" << std::endl;
+        spttn_print << "Not broadcasting output" << std::endl;
         Bs[nBs-1]->set_zero();
         Bs[nBs-1]->operator[]("ij") += redist_Bs[nBs-1]->operator[]("ij");
       }

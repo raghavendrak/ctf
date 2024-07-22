@@ -28,9 +28,10 @@ namespace CTF_int{
       int  *   break_rec_idx;
 
       // blas operands, can be INTERMEDIATE_TENSOR, MAIN_TENSOR, or INP_B
-      int      blas_ops[3];
+      // int      blas_ops[3];
       // prepare BLAS kernels
       int      blas_kernel;
+      // operands for contraction; Bs[0:nBs-2] are the factor tensors, Bs[nBs-1] is the output tensor, Bs[nBs] is the main sparse tensor and Bs[nBs+i] are the intermediate tensors
       int      blas_B_ids[3];
       // if Level 1 BLAS, ALPHA will point to the B operand that holds the value
       // if Level 2 BLAS, ALPHA will hold the value 
@@ -58,7 +59,8 @@ namespace CTF_int{
       int      index_order_sz;
 
       // chaining terms; input buffer id: term id where the buffer is produced that this term consumes
-      int      inp_buf_id;
+      int   *  inp_buf_ids;
+      int      i_inp_buf_id;
       int      out_buf_id;
   
       contraction_terms(int num_indices, int num_Bs)
@@ -78,8 +80,11 @@ namespace CTF_int{
         tbuffer_order = -1;
         rev_idx_tbuffer = (int *)CTF_int::alloc(sizeof(int) * num_indices);
         std::fill_n(rev_idx_tbuffer, num_indices, -1);
-        std::fill_n(blas_ops, 3, -1);
+        // std::fill_n(blas_ops, 3, -1);
         std::fill_n(blas_B_ids, 3, -1);
+        inp_buf_ids = (int *)CTF_int::alloc(sizeof(int) * 2);
+        std::fill_n(inp_buf_ids, 2, -1);
+        i_inp_buf_id = 0;
 
         dense_sp_loop = nullptr;
         dense_sp_loop_in_term = -1;
@@ -99,7 +104,6 @@ namespace CTF_int{
         std::fill_n(rev_index_order, num_indices, -1);
         index_order_sz = -1;
 
-        inp_buf_id = -1;
         out_buf_id = -1;
       }
 
@@ -112,8 +116,33 @@ namespace CTF_int{
         free(Bs_in_term);
         free(rev_idx_tbuffer);
         free(break_rec_idx);
+        free(inp_buf_ids);
       }
   };
+
+  class debug_spttn_cyclops {
+    public:
+      static bool& enabled() {
+        static bool enabled = false;
+        return enabled;
+      }
+
+      template<typename T>
+      debug_spttn_cyclops& operator<<(const T& value) {
+        if (enabled()) {
+          std::cout << value;
+        }
+        return *this;
+      }
+
+      debug_spttn_cyclops& operator<<(std::ostream& (*manip)(std::ostream&)) {
+        if (enabled()) {
+          manip(std::cout);
+        }
+        return *this;
+      }
+  };
+
 
   void spA_dnBs_gen_ctr(char const *                alpha,
                         CSF<double> *               A_tree,
