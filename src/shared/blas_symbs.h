@@ -32,6 +32,7 @@
 #define DCOPY dcopy_
 #define ZCOPY zcopy_
 #define DGER dger_
+#define DGEMV dgemv_
 #else
 #define DDOT ddot
 #define SGEMM sgemm
@@ -62,6 +63,7 @@
 #define DCOPY dcopy
 #define ZCOPY zcopy
 #define DGER dger
+#define DGEMV dgemv
 #endif
 
 
@@ -351,6 +353,18 @@ namespace CTF_BLAS {
             const int *          incY,
             double *             dA,
             const int *          LDA);
+  extern "C"
+  void DGEMV(const char *          TRANS,
+             const int *           M,
+             const int *           N,
+             const double *        ALPHA,
+             const double *        dA,
+             const int *           LDA,
+             const double *        dX,
+             const int *           incX,
+             const double *        BETA,
+             double *              dY,
+             const int *           incY);
 
 #ifdef USE_BATCH_GEMM
   extern "C"

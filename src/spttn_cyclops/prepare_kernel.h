@@ -308,8 +308,11 @@ namespace CTF_int {
         break;
         case DENSE_3D: {
           if (rank == 0) spttn_print << "term_id: " << i << " blas_kernel: " << "DENSE_3D" << std::endl;
-          term.blas_kernel = DENSE_3D_TO_xAXPY;
-          i--;
+          // term.blas_kernel = DENSE_3D_TO_xAXPY;
+          // i--;
+          term.ALPHA = term.blas_B_ids[0];
+          term.X = term.blas_B_ids[1];
+          term.Y = term.blas_B_ids[2];
         }
         break;
         case xAXPY: {
@@ -674,6 +677,50 @@ namespace CTF_int {
           term.N = len_idx[idx];
         }
         break;
+        case xGEMV: {
+          if (rank == 0) spttn_print << "term_id: " << i << " blas_kernel: " << "xGEMV" << std::endl;
+          // y <- alpha * A * x + beta * y
+          term.ALPHA = 1.0;
+          int idx_X;
+          int idx_Y;
+          // output
+          term.Y = term.blas_B_ids[2];
+          idx_Y = term.Y >= nBs ? terms[term.Y-nBs].idx_tbuffer[0] : idx_Bs[term.Y][0];
+          // input
+          int idx_X1 = term.blas_B_ids[0] >= nBs ? terms[term.blas_B_ids[0]-nBs].idx_tbuffer[0] : idx_Bs[term.blas_B_ids[0]][0];
+          int idx_X2 = term.blas_B_ids[1] >= nBs ? terms[term.blas_B_ids[1]-nBs].idx_tbuffer[0] : idx_Bs[term.blas_B_ids[1]][0];
+          if (idx_X1 == idx_Y) {
+            // first input tensor is A
+            term.A = term.blas_B_ids[0];
+            int idx_Y1 = term.blas_B_ids[0] >= nBs ? terms[term.blas_B_ids[0]-nBs].idx_tbuffer[1] : idx_Bs[term.blas_B_ids[0]][1];
+            if (idx_Y1 != idx_X2) {
+              term.blas_kernel = RECURSIVE_LOOP;
+              i--;
+              break;
+            }
+            term.M = len_idx[idx_X1];
+            term.N = len_idx[idx_Y1];
+            term.X = term.blas_B_ids[1];
+            term.INCX = lda_Bs[term.X][idx_X2];
+          }
+          else {
+            // second input tensor is A
+            term.A = term.blas_B_ids[1];
+            int idx_Y2 = term.blas_B_ids[1] >= nBs ? terms[term.blas_B_ids[1]-nBs].idx_tbuffer[1] : idx_Bs[term.blas_B_ids[1]][1];
+            if (idx_Y2 != idx_X1) {
+              term.blas_kernel = RECURSIVE_LOOP;
+              i--;
+              break;
+            }
+            term.M = len_idx[idx_X2];
+            term.N = len_idx[idx_Y2];
+            term.X = term.blas_B_ids[0];
+            term.INCX = lda_Bs[term.X][idx_X1];
+          }
+          term.LDA = term.M;
+          term.INCY = lda_Bs[term.Y][idx_Y];
+        }
+        break;
         default:
           break;
       }
@@ -753,46 +800,21 @@ namespace CTF_int {
       }
     }
     else if (num_idx == 2) {
-      if (nidx_term[0] == 1) {
-        if (nidx_term[1] == 1) {
-          IASSERT(nidx_term[2] == 2);
-          term.blas_kernel = xGER;
-          if (rank == 0) spttn_print << "term_id: " << term_id << " blas_kernel: " << "xGER" << std::endl;
-        }
-        else {
-          IASSERT(nidx_term[1] == 2 && nidx_term[2] == 1);
-          term.blas_kernel = xGEMV;
-          if (rank == 0) spttn_print << "term_id: " << term_id << " blas_kernel: " << "xGEMV" << std::endl;
-        }
+      if (nidx_term[0] == 1 && nidx_term[1] == 1 && nidx_term[2] == 2) {
+        term.blas_kernel = xGER;
+        if (rank == 0) spttn_print << "term_id: " << term_id << " blas_kernel: " << "xGER" << std::endl;
       }
       else if (nidx_term[0] == 2 && nidx_term[1] == 0) {
-        // TODO: duplicate code; move it to a function
-        if (nidx_term[0] == 2 && nidx_term[1] == 1) {
-          int j = 0;
-          for (; j < num_indices; j++) {
-            if (in_term_idx[1][j] == true) {
-              break;
-            }
-          }
-          if (in_term_idx[0][j] == false) {
-            IASSERT(nidx_term[2] == 3);
-            term.dense_idx = -1;
-            term.blas_kernel = DENSE_xAXPY_2D;
-            if (rank == 0) spttn_print << "term_id: " << term_id << " blas_kernel: " << "DENSE_xAXPY_2D" << std::endl;
-          }
-        }
-        else if (((nidx_term[0] == 2 && nidx_term[1] == 3) || (nidx_term[0] == 3 && nidx_term[1] == 2)) && nidx_term[2] == 1) {       
-          // potential for xGEMV call
-          IASSERT(0);
-        }
-        else {
-          // TODO: ttmc_o3_allm rkji rskj tkrs
-          term.blas_kernel = RECURSIVE_LOOP;
-          if (rank == 0) spttn_print << "term_id: " << term_id << " blas_kernel: " << "RECURSIVE_LOOP" << std::endl;
-        }
+        // TODO: ttmc_o3_allm rkji rskj tkrs
+        term.blas_kernel = RECURSIVE_LOOP;
+        if (rank == 0) spttn_print << "term_id: " << term_id << " blas_kernel: " << "RECURSIVE_LOOP" << std::endl;
+      }
+      else if ((nidx_term[0] == 1 && nidx_term[1] == 2 && nidx_term[2] == 1) || (nidx_term[0] == 2 && nidx_term[1] == 1 && nidx_term[2] == 1)) {
+        // TODO: tucker_solve TTTP term 1 a <- abc bj
+        term.blas_kernel = xGEMV;
+        if (rank == 0) spttn_print << "term_id: " << term_id << " blas_kernel: " << "xGEMV" << std::endl;
       }
       else {
-        // TODO: tucker_solve TTTP term 1 a <- abc bj
         term.blas_kernel = RECURSIVE_LOOP;
         if (rank == 0) spttn_print << "term_id: " << term_id << " blas_kernel: " << "RECURSIVE_LOOP" << std::endl;
       }
@@ -811,16 +833,25 @@ namespace CTF_int {
           term.blas_kernel = DENSE_xAXPY_2D;
           if (rank == 0) spttn_print << "term_id: " << term_id << " blas_kernel: " << "DENSE_xAXPY_2D" << std::endl;
         }
+        else {
+          term.blas_kernel = RECURSIVE_LOOP;
+          if (rank == 0) spttn_print << "term_id: " << term_id << " blas_kernel: " << "RECURSIVE_LOOP" << std::endl;
+        }
       }
       else if (((nidx_term[0] == 2 && nidx_term[1] == 3) || (nidx_term[0] == 3 && nidx_term[1] == 2)) && nidx_term[2] == 1) {       
         term.blas_kernel = DENSE_3D;
+        // term.blas_kernel = RECURSIVE_LOOP;
         if (rank == 0) spttn_print << "term_id: " << term_id << " blas_kernel: " << "DENSE_3D" << std::endl;
-        return;
+      }
+      else {
+        // one possibility nidx_term[0] == 3 && nidx_term[1] == 1 && nidx_term[2] == 3
+        term.blas_kernel = DENSE_3D;
+        if (rank == 0) spttn_print << "term_id: " << term_id << " blas_kernel: " << "DENSE_3D" << std::endl;
       }
     }
     else if (num_idx == 4) {
-      term.blas_kernel = DENSE_xAXPY_3D;
-      spttn_print << "term_id: " << term_id << " blas_kernel: " << "DENSE_xAXPY_3D" << std::endl;
+      term.blas_kernel = RECURSIVE_LOOP;
+      if (rank == 0) spttn_print << "term_id: " << term_id << " blas_kernel: " << "RECURSIVE_LOOP" << std::endl;
     }
     else {
       IASSERT(0);

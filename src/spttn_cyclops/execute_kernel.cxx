@@ -251,47 +251,38 @@ namespace CTF_int {
       break;
       case DENSE_3D: {
         int64_t idx1 = term.index_order[iidx];
-        int terms[3];
-        terms[0] = term.X; terms[1] = term.Y; terms[2] = term.ALPHA;
+        int64_t idx2 = term.index_order[iidx+1];
+        int64_t idx3 = term.index_order[iidx+2];
+        int xyalpha[3];
+        xyalpha[0] = term.X; xyalpha[1] = term.Y; xyalpha[2] = term.ALPHA;
         for (int64_t i = 0; i < len_idx[idx1]; i++) {
           char *tBs_idx1[3];
           for (int j = 0; j < 3; j++) {
+            tBs_idx1[j] = Bs[xyalpha[j]];
             int pos_idx;
-            if (terms[j] > nBs) pos_idx = term.rev_idx_tbuffer[idx1];
-            else pos_idx = rev_idx_map[terms[j]][idx1]; 
+            pos_idx = xyalpha[j] >= nBs ? terms[xyalpha[j]-nBs].rev_idx_tbuffer[idx1] : rev_idx_map[xyalpha[j]][idx1];
             if (pos_idx != -1) {
-              tBs_idx1[j] = (char *)((double *)Bs[terms[j]] + lda_Bs[terms[j]][idx1] * i);
-            }
-            else {
-              tBs_idx1[j] = Bs[terms[j]];
+              tBs_idx1[j] = (char *)((double *)Bs[xyalpha[j]] + lda_Bs[xyalpha[j]][idx1] * i);
             }
           }
-          int64_t idx2 = term.index_order[iidx+1];
           for (int64_t ii = 0; ii < len_idx[idx2]; ii++) {
             char *tBs_idx2[3];
             for (int j = 0; j < 3; j++) {
+              tBs_idx2[j] = tBs_idx1[j];
               int pos_idx;
-              if (terms[j] > nBs) pos_idx = term.rev_idx_tbuffer[idx2];
-              else pos_idx = rev_idx_map[terms[j]][idx2]; 
+              pos_idx = xyalpha[j] >= nBs ? terms[xyalpha[j]-nBs].rev_idx_tbuffer[idx2] : rev_idx_map[xyalpha[j]][idx2];
               if (pos_idx != -1) {
-                tBs_idx2[j] = (char *)((double *)tBs_idx1[j] + lda_Bs[terms[j]][idx2] * ii);
-              }
-              else {
-                tBs_idx2[j] = tBs_idx1[j];
+                tBs_idx2[j] = (char *)((double *)tBs_idx1[j] + lda_Bs[xyalpha[j]][idx2] * ii);
               }
             }
-            int64_t idx3 = term.index_order[iidx+2];
             for (int64_t iii = 0; iii < len_idx[idx3]; iii++) {
               char *tBs_idx3[3];
               for (int j = 0; j < 3; j++) {
+                tBs_idx3[j] = tBs_idx2[j];
                 int pos_idx;
-                if (terms[j] > nBs) pos_idx = term.rev_idx_tbuffer[idx3];
-                else pos_idx = rev_idx_map[terms[j]][idx3]; 
+                pos_idx = xyalpha[j] >= nBs ? terms[xyalpha[j]-nBs].rev_idx_tbuffer[idx3] : rev_idx_map[xyalpha[j]][idx3];
                 if (pos_idx != -1) {
-                  tBs_idx3[j] = (char *)((double *)tBs_idx2[j] + lda_Bs[terms[j]][idx3] * iii);
-                }
-                else {
-                  tBs_idx3[j] = tBs_idx2[j];
+                  tBs_idx3[j] = (char *)((double *)tBs_idx2[j] + lda_Bs[xyalpha[j]][idx3] * iii);
                 }
               }
               double * dX = (double *)tBs_idx3[0];
@@ -314,6 +305,15 @@ namespace CTF_int {
           // handle the cases where either the output or the buffer is sparse
           IASSERT(0);
         }
+      }
+      break;
+      case xGEMV: {
+        double * dX = (double *)Bs[term.X];
+        double * dY = (double *)Bs[term.Y];
+        double * dA = (double *)Bs[term.A];
+        double BETA = 1.;
+        const char TRANS = 'N';
+        CTF_BLAS::DGEMV(&TRANS, &term.M, &term.N, &term.ALPHA, dA, &term.LDA, dX, &term.INCX, &BETA, dY, &term.INCY);
       }
       break;
       default: {
