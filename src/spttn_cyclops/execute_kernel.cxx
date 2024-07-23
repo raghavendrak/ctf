@@ -312,8 +312,14 @@ namespace CTF_int {
         double * dY = (double *)Bs[term.Y];
         double * dA = (double *)Bs[term.A];
         double BETA = 1.;
-        const char TRANS = 'N';
-        CTF_BLAS::DGEMV(&TRANS, &term.M, &term.N, &term.ALPHA, dA, &term.LDA, dX, &term.INCX, &BETA, dY, &term.INCY);
+        CTF_BLAS::DGEMV(&term.TRANS, &term.M, &term.N, &term.ALPHA, dA, &term.LDA, dX, &term.INCX, &BETA, dY, &term.INCY);
+      }
+      break;
+      case xDOT: {
+        double * dX = (double *)Bs[term.X];
+        double * dY = (double *)Bs[term.Y];
+        double * dot = (double *)Bs[(int)term.ALPHA];
+        *dot = CTF_BLAS::DDOT(&term.N, dX, &term.INCX, dY, &term.INCY);
       }
       break;
       default: {

@@ -50,6 +50,7 @@ namespace CTF_int{
       double   BETA;
       int      M;
       int      N;
+      char     TRANS;
 
       bool  *  dense_sp_loop;
       int      dense_sp_loop_in_term;
