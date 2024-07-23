@@ -43,6 +43,74 @@ namespace CTF_BLAS {
 #undef INST_GEMM
 
   template <typename dtype>
+  void gemv(const char *    TRANS,
+            const int *     M,
+            const int *     N,
+            const dtype *   ALPHA,
+            dtype *         A,
+            const int *     LDA,
+            dtype *         X,
+            const int *     INCX,
+            const dtype *   BETA,
+            dtype *         Y,
+            const int *     INCY){
+    printf("CTF ERROR GEMV not available for this type.\n");
+    ASSERT(0);
+    assert(0);
+  }
+#define INST_GEMV(dtype,s)                     \
+  template <>                                  \
+  void gemv<dtype>(const char * a,             \
+            const int * b,                     \
+            const int * c,                     \
+            const dtype * d,                   \
+            dtype * e,                         \
+            const int * f,                     \
+            dtype * g,                         \
+            const int * h,                     \
+            const dtype * i,                   \
+            dtype * j,                         \
+            const int * k){                    \
+    s ## GEMV(a,b,c,d,e,f,g,h,i,j,k); \
+  }
+  INST_GEMV(float,S)
+  INST_GEMV(double,D)
+  INST_GEMV(std::complex<float>,C)
+  INST_GEMV(std::complex<double>,Z)
+#undef INST_GEMV
+
+  template <typename dtype>
+  void ger(const int *m,
+          const int *n,
+          const dtype *alpha,
+          const dtype *x,
+          const int *incx,
+          const dtype *y,
+          const int *incy,
+          dtype *A,
+          const int *lda) {
+      printf("CTF ERROR: GER not available for this type.\n");
+      assert(0);
+  }
+
+  #define INST_GER(dtype, prefix)                                      \
+  template <>                                                          \
+  void ger<dtype>(const int *a,                                        \
+                  const int *b,                                        \
+                  const dtype *c,                                      \
+                  const dtype *d,                                      \
+                  const int *e,                                        \
+                  const dtype *f,                                      \
+                  const int *g,                                        \
+                  dtype *h,                                            \
+                  const int *i) {                                      \
+      prefix##GER(a, b, c, d, e, f, g, h, i);                          \
+  }
+  INST_GER(float, S)
+  INST_GER(double, D)
+  #undef INST_GER
+
+  template <typename dtype>
   void syr(const char *       UPLO ,
             const int *        N , 
             const dtype *     ALPHA, 

@@ -204,7 +204,7 @@ namespace CTF_int {
       case xGER: {
         double * dX = (double *)Bs[term.X];
         double * dY = (double *)Bs[term.Y];
-        CTF_BLAS::DGER(&term.M, &term.N, &term.ALPHA, dX, &term.INCX, dY, &term.INCY, (double *)Bs[term.A], &term.LDA);
+        CTF_BLAS::ger<double>(&term.M, &term.N, &term.ALPHA, dX, &term.INCX, dY, &term.INCY, (double *)Bs[term.A], &term.LDA);
       }
       break;
       case DENSE_xAXPY_3D:
@@ -312,7 +312,7 @@ namespace CTF_int {
         double * dY = (double *)Bs[term.Y];
         double * dA = (double *)Bs[term.A];
         double BETA = 1.;
-        CTF_BLAS::DGEMV(&term.TRANS, &term.M, &term.N, &term.ALPHA, dA, &term.LDA, dX, &term.INCX, &BETA, dY, &term.INCY);
+        CTF_BLAS::gemv<double>(&term.TRANS, &term.M, &term.N, &term.ALPHA, dA, &term.LDA, dX, &term.INCX, &BETA, dY, &term.INCY);
       }
       break;
       case xDOT: {

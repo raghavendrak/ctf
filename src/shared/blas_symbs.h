@@ -8,6 +8,10 @@
 #define DGEMM dgemm_
 #define CGEMM cgemm_
 #define ZGEMM zgemm_
+#define SGEMV sgemv_
+#define DGEMV dgemv_
+#define CGEMV cgemv_
+#define ZGEMV zgemv_
 #define SGEMM_BATCH sgemm_batch_
 #define DGEMM_BATCH dgemm_batch_
 #define CGEMM_BATCH cgemm_batch_
@@ -31,14 +35,18 @@
 #define SCOPY scopy_
 #define DCOPY dcopy_
 #define ZCOPY zcopy_
+#define SGER sger_
 #define DGER dger_
-#define DGEMV dgemv_
 #else
 #define DDOT ddot
 #define SGEMM sgemm
 #define DGEMM dgemm
 #define CGEMM cgemm
 #define ZGEMM zgemm
+#define SGEMV sgemv
+#define DGEMV dgemv
+#define CGEMV cgemv
+#define ZGEMV zgemv
 #define SGEMM_BATCH sgemm_batch
 #define DGEMM_BATCH dgemm_batch
 #define CGEMM_BATCH cgemm_batch
@@ -62,8 +70,8 @@
 #define SCOPY scopy
 #define DCOPY dcopy
 #define ZCOPY zcopy
+#define SGER sger
 #define DGER dger
-#define DGEMV dgemv
 #endif
 
 
@@ -136,6 +144,7 @@ namespace CTF_BLAS {
              const int *);
 
 
+
   extern "C"
   void SAXPY(const int *   n,
              float *       dA,
@@ -193,6 +202,71 @@ namespace CTF_BLAS {
              const int *                  incX,
              std::complex<double> *       dY,
              const int *                  incY);
+
+  extern "C"
+  void SGEMV(const char *,
+             const int *,
+             const int *,
+             const float *,
+             const float *,
+             const int *,
+             const float *,
+             const int *,
+             const float *,
+             float *,
+             const int *);
+
+  extern "C"
+  void DGEMV(const char *,
+             const int *,
+             const int *,
+             const double *,
+             const double *,
+             const int *,
+             const double *,
+             const int *,
+             const double *,
+             double *,
+             const int *);
+
+  extern "C"
+  void CGEMV(const char *,
+             const int *,
+             const int *,
+             const std::complex<float> *,
+             const std::complex<float> *,
+             const int *,
+             const std::complex<float> *,
+             const int *,
+             const std::complex<float> *,
+             std::complex<float> *,
+             const int *);
+
+  extern "C"
+  void ZGEMV(const char *,
+             const int *,
+             const int *,
+             const std::complex<double> *,
+             const std::complex<double> *,
+             const int *,
+             const std::complex<double> *,
+             const int *,
+             const std::complex<double> *,
+             std::complex<double> *,
+             const int *);
+
+  template <typename dtype>
+  void gemv(const char *    TRANS,
+            const int *     M,
+            const int *     N,
+            const dtype *   ALPHA,
+            dtype *         A,
+            const int *     LDA,
+            dtype *         X,
+            const int *     INCX,
+            const dtype *   BETA,
+            dtype *         Y,
+            const int *     INCY);
 
   extern "C"
   void SSYR(const char *       UPLO ,
@@ -344,27 +418,38 @@ namespace CTF_BLAS {
              const int *            incX);
 
   extern "C"
-  void DGER(const int *          m,
-            const int *          n,
-            const double *       ALPHA,
-            const double *       dX,
-            const int *          incX,
-            const double *       dY,
-            const int *          incY,
-            double *             dA,
-            const int *          LDA);
+  void SGER(const int *,
+            const int *,
+            const float *,
+            const float *,
+            const int *,
+            const float *,
+            const int *,
+            float *,
+            const int *);
+
   extern "C"
-  void DGEMV(const char *          TRANS,
-             const int *           M,
-             const int *           N,
-             const double *        ALPHA,
-             const double *        dA,
-             const int *           LDA,
-             const double *        dX,
-             const int *           incX,
-             const double *        BETA,
-             double *              dY,
-             const int *           incY);
+  void DGER(const int *,
+            const int *,
+            const double *,
+            const double *,
+            const int *,
+            const double *,
+            const int *,
+            double *,
+            const int *);
+
+  template <typename dtype>
+  void ger(const int *    m,
+          const int *    n,
+          const dtype *  alpha,
+          const dtype *  x,
+          const int *    incX,
+          const dtype *  y,
+          const int *    incY,
+          dtype *        A,
+          const int *    LDA);
+
 
 #ifdef USE_BATCH_GEMM
   extern "C"
