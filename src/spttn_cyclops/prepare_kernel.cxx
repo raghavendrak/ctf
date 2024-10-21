@@ -371,6 +371,10 @@ namespace CTF_int {
     if (A->wrld->rank == 0) printf("tree construction time: %1.2lf\n", (etime - stime));
 
     if (Bs[nBs-1]->is_sparse) {
+      // resetting the sparse tensor - only assignment is supported
+      for (int64_t k = 0; k < npair; k++) {
+        ((Pair<dtype>*)Bs[nBs-1]->data)[k].d = 0.;
+      }
       A_csf.init_sp_op((Pair<dtype>*)Bs[nBs-1]->data);
     }
     

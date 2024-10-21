@@ -30,7 +30,7 @@ bool execute_spttn_kernel(int n, int ur, int vr, int wr,
     lens[3] = n4;
 
     // std::unordered_set<std::string> run = {"tucker_contraction_1", "tucker_contraction_2"};
-    std::unordered_set<std::string> run = {"tucker_contraction_1"};
+    std::unordered_set<std::string> run = {"tucker_contraction_4"};
 
     if (run.count("tucker_contraction_1") > 0) {
       /*
@@ -458,7 +458,7 @@ bool execute_spttn_kernel(int n, int ur, int vr, int wr,
 
       stime = MPI_Wtime();
       UCxx["ijk"] = T["ijk"];
-      UCxx["ijk"] += T["ijk"] * U["ai"] * V["bj"] * W["ck"] * C["abc"];
+      UCxx["ijk"] = T["ijk"] * U["ai"] * V["bj"] * W["ck"] * C["abc"];
       etime = MPI_Wtime();
       if (dw.rank == 0) printf("ijk,ai,bj,ck,abc->ijk using CTF: %1.2lf\n", (etime - stime));
 
